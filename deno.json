@@ -3,7 +3,7 @@
 	"version": "0.1.0",
 	"description": "A wrapper on top of esbuild to provide you with extended esbuild plugin-api capabilities (hence a super set of esbuild).",
 	"author": "Omar Azmi",
-	"license": "Lulz plz don't steal yet",
+	"license": "Apache-2.0",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/oazmi/super-build.git"
@@ -20,8 +20,8 @@
 		".": "./src/mod.ts"
 	},
 	"imports": {
-		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.9.14",
-		"@oazmi/esbuild-types": "jsr:@oazmi/esbuild-types@0.25.x"
+		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.10.0",
+		"@oazmi/esbuild-types": "jsr:@oazmi/esbuild-types@0.28.0"
 	},
 	"nodeModulesDir": "none",
 	"publish": {
@@ -41,7 +41,7 @@
 		"singleQuote": false,
 		"lineWidth": 800,
 		"proseWrap": "preserve",
-		"include": ["./src/", "./test/", "./*.md", "./*.json"]
+		"include": ["./src/", "./examples/", "./test/", "**/*.md", "**/*.json"]
 	},
 	"compilerOptions": {
 		"lib": ["esnext", "dom", "deno.ns"],
@@ -49,8 +49,8 @@
 	},
 	"packageJson": {
 		"dependencies": {
-			"@oazmi/kitchensink": "0.9.14",
-			"@oazmi/esbuild-types": "0.25.x"
+			"@oazmi/kitchensink": "0.10.0",
+			"@oazmi/esbuild-types": "0.28.0"
 		},
 		"devDependencies": {
 			"typescript": "^5.6.0",
@@ -79,7 +79,7 @@
 		],
 		"esbuild": {
 			"chunkNames": "chunks/[hash]",
-			"external": []
+			"external": ["node:fs/promises", "node:child_process"]
 		}
 	},
 	"buildDocs": {
@@ -99,15 +99,15 @@
 	},
 	"tasks": {
 		"build-dist": {
-			"command": "deno run -A \"jsr:@oazmi/build-tools@0.2.7/cli/dist\" --config=\"./deno.json\"",
+			"command": "deno run -A \"jsr:@oazmi/build-tools@0.3.1/cli/dist\" --config=\"./deno.json\"",
 			"description": "transpiles the library to minified esm-distributable javascript multi-entry source code.\nuses the `buildDist` field in `deno.json` for configuration.\ndepends on `npm:esbuild` and `jsr:@oazmi/build-tools`."
 		},
 		"build-docs": {
-			"command": "deno run -A \"jsr:@oazmi/build-tools@0.2.7/cli/docs\" --config=\"./deno.json\"",
+			"command": "deno run -A \"jsr:@oazmi/build-tools@0.3.1/cli/docs\" --config=\"./deno.json\"",
 			"description": "generates github-pages compatible documentation site for the library.\nuses the `buildDocs` field in `deno.json` for configuration.\ndepends on `npm:typedoc` and `jsr:@oazmi/build-tools`."
 		},
 		"build-npm": {
-			"command": "deno run -A \"jsr:@oazmi/build-tools@0.2.7/cli/npm\" --config=\"./deno.json\"",
+			"command": "deno run -A \"jsr:@oazmi/build-tools@0.3.1/cli/npm\" --config=\"./deno.json\"",
 			"description": "converts the library code to a nodejs compatible project.\nuses the `buildNpm` field in `deno.json` for configuration.\ndepends on `jsr:@deno/dnt` and `jsr:@oazmi/build-tools`."
 		},
 		"build-npm-dist": {
