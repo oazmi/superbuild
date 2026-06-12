@@ -2,13 +2,14 @@ import { } from "@oazmi/kitchensink/crossenv"
 import { } from "@oazmi/kitchensink/pathman"
 
 
-export type * as EsbuildTypes from "@oazmi/esbuild-types"
+export type * as esbuild from "@oazmi/esbuild-types"
 export { } from "@oazmi/kitchensink/alias"
 export { } from "@oazmi/kitchensink/crossenv"
 export { } from "@oazmi/kitchensink/pathman"
+export { } from "@oazmi/kitchensink/promiseman"
 export { } from "@oazmi/kitchensink/stringman"
 export { } from "@oazmi/kitchensink/struct"
-export type { } from "@oazmi/kitchensink/typedefs"
+export type { MaybePromise } from "@oazmi/kitchensink/typedefs"
 
 /** flags used for minifying (or eliminating) debugging logs and asserts, when an intelligent bundler, such as `esbuild`, is used. */
 export const enum DEBUG {
@@ -18,3 +19,30 @@ export const enum DEBUG {
 	PRODUCTION = 1,
 	MINIFY = 0,
 }
+
+/** this utility type lets makes your typescript LSP auto-suggest literals defined in the input generic type `T`,
+ * while also permitting arbitrary strings to be used.
+ *
+ * TODO: add this utility type to kitchensink.
+ *
+ * @example
+ * ```ts
+ * type InstallationPath = AutoSuggestOrString<0 | undefined | "$CWD" | "C-DRIVE" | "$ROOT">
+ *
+ * const installProgram = async (installation_path: InstallationPath) => {
+ * 	const abs_path = installation_path === undefined ? ""
+ * 		: installation_path === "$CWD" ? Deno.cwd()   // LSP will suggest `0 | "$CWD" | "C-DRIVE" | "$ROOT"`.
+ * 			: installation_path === "C-DRIVE" ? "C:/" // LSP will suggest `0 | "C-DRIVE" | "$ROOT"`.
+ * 				: installation_path === "$ROOT" ? "/" // LSP will suggest `0 | "$ROOT"`.
+ * 					: installation_path === 0 ? ""    // LSP will suggest `0`.
+ * 						: installation_path satisfies string // `(string & {})` is still a valid string.
+ * 	// perform installation
+ * }
+ *
+ * await installProgram("$CWD")             // valid, and LSP will suggest the default options first.
+ * await installProgram(undefined)          // valid.
+ * await installProgram(0)                  // valid.
+ * await installProgram("/etc/hello/world") // also valid.
+ * ```
+*/
+export type AutoSuggestOrString<T> = T | (string & {})
