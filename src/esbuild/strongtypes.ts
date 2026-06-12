@@ -10,6 +10,25 @@ import type { esbuild, MaybePromise } from "../deps.ts"
 import type { CommonPluginData } from "./typedefs.ts"
 
 
+//// `esbuild` namespace. ////
+
+/** an interface representing the `esbuild` namespace. */
+export interface Esbuild {
+	/** this is only available at the top-level `esbuild` object, not in sub-builds residing inside of {@link EsbuildPluginBuild}. */
+	stop?: typeof esbuild.stop
+	analyzeMetafile: typeof esbuild.analyzeMetafile
+	analyzeMetafileSync: typeof esbuild.analyzeMetafileSync
+	build: typeof esbuild.build
+	buildSync: typeof esbuild.buildSync
+	context: typeof esbuild.context
+	formatMessages: typeof esbuild.formatMessages
+	formatMessagesSync: typeof esbuild.formatMessagesSync
+	initialize: typeof esbuild.initialize
+	transform: typeof esbuild.transform
+	transformSync: typeof esbuild.transformSync
+	version: typeof esbuild.version
+}
+
 //// `onResolve` ////
 
 /** type alias for `esbuild.OnResolveOptions`. */

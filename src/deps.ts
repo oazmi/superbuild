@@ -3,12 +3,12 @@ import { } from "@oazmi/kitchensink/pathman"
 
 
 export type * as esbuild from "@oazmi/esbuild-types"
-export { } from "@oazmi/kitchensink/alias"
+export { array_isEmpty, object_entries, object_assign, object_keys } from "@oazmi/kitchensink/alias"
 export { } from "@oazmi/kitchensink/crossenv"
 export { } from "@oazmi/kitchensink/pathman"
 export { } from "@oazmi/kitchensink/promiseman"
 export { } from "@oazmi/kitchensink/stringman"
-export { } from "@oazmi/kitchensink/struct"
+export { isArray, isString, isFunction } from "@oazmi/kitchensink/struct"
 export type { MaybePromise } from "@oazmi/kitchensink/typedefs"
 
 /** flags used for minifying (or eliminating) debugging logs and asserts, when an intelligent bundler, such as `esbuild`, is used. */
