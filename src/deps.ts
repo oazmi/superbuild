@@ -20,6 +20,11 @@ export const enum DEBUG {
 	MINIFY = 0,
 }
 
+/** check if `obj` is either `null` or `undefined`. */
+export const isNull = (obj: any): obj is (null | undefined) => {
+	return (obj === undefined) || (obj === null)
+}
+
 /** this utility type lets makes your typescript LSP auto-suggest literals defined in the input generic type `T`,
  * while also permitting arbitrary strings to be used.
  *

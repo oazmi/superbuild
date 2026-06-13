@@ -105,7 +105,7 @@ export interface OnTransformResult {
 	pluginData?: any
 
 	// TODO: I'll add this later. also, will `key` be necessary? sure the `key` will be convenient, but the position within the array will also indicate the location of the import.
-	// imports: ({ key: string, path: string, with: Record<string, string> })[]
+	imports?: ImportEntity[]
 
 	/** if any fatal error(s) occur during the transformation, pass it as a return value so that the build gets immediately halted. */
 	errors?: EsbuildPartialMessage[]
@@ -138,8 +138,15 @@ export interface OnTransformResult {
 export type OnTransformCallback = (args: OnTransformArgs) => MaybePromise<OnTransformResult | null | undefined>
 
 export interface OnTransformHandler {
+	pluginName: string
 	filter: RegExp
 	namespace?: string
 	loader?: string
 	callback: OnTransformCallback
+}
+
+export interface ImportEntity<K = any> {
+	key: K
+	path: string
+	with: Record<string, string>
 }
