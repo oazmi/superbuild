@@ -29,6 +29,7 @@ export interface Esbuild {
 	version: typeof esbuild.version
 }
 
+
 //// `onResolve` ////
 
 /** type alias for `esbuild.OnResolveOptions`. */
@@ -108,6 +109,9 @@ export type EsbuildLoaderType = esbuild.Loader
 
 /** type alias for `esbuild.Message`. */
 export type EsbuildMessage = esbuild.Message
+
+/** type alias for `esbuild.PartialMessage`. */
+export type EsbuildPartialMessage = esbuild.PartialMessage
 
 /** useful non-public utility type copied from esbuild's source code. */
 export type SameShape<Out, In extends Out> = In & { [Key in Exclude<keyof In, keyof Out>]: never }

@@ -14,6 +14,7 @@ import type {
 	OnResolveCallback,
 	OnResolveOptions,
 } from "./esbuild/strongtypes.ts"
+import type { OnTransformCallback, OnTransformHandler, OnTransformOptions } from "./typedefs.ts"
 
 
 export class SuperBuild implements Esbuild {
@@ -29,8 +30,15 @@ export class SuperBuild implements Esbuild {
 	declare public transform: Esbuild["transform"]
 	declare public transformSync: Esbuild["transformSync"]
 	declare public stop: Esbuild["stop"]
-
 	#esbuild: Esbuild
+
+	/** contains a list of transformation handlers that will be used for matching contents returned by the plugins' `onLoad` hooks,
+	 * in order to transfer them to the registered {@link SuperPluginBuild.onTransform} hooks.
+	 *
+	 * > [!note]
+	 * > for internal use only!
+	*/
+	public onTransformHandlers: OnTransformHandler[] = []
 
 	constructor(base_esbuild: Esbuild) {
 		this.#esbuild = base_esbuild
@@ -107,5 +115,10 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 
 	public onDispose(callback: () => void): void {
 		return this.basePluginBuild.onDispose(callback)
+	}
+
+	public onTransform(options: OnTransformOptions, callback: OnTransformCallback): void {
+		const { filter, namespace, loader } = options
+		this.ctx.onTransformHandlers.push({ filter, namespace, loader, callback })
 	}
 }
