@@ -7,6 +7,7 @@
 */
 
 import type { AbsolutePath } from "../typedefs.ts"
+import type { EsbuildLoaderType } from "./strongtypes.ts"
 import type { EsbuildLoaderTypeCompatible } from "./weaktypes.ts"
 
 
@@ -112,4 +113,33 @@ export interface EsbuildOutputFile {
 
 	/** the (unique?) hash generated for this output file by esbuild. */
 	hash?: string
+}
+
+/** this dictates esbuild's default/native file-extension to loader mapping.
+ * it is roughly based on the following esbuild function:
+ * [`"/internal/bundler/bundler.go":DefaultExtensionToLoaderMap`](https://github.com/evanw/esbuild/blob/6ff1d8b0d8c134e867a397eef39702a223ebef9e/internal/bundler/bundler.go#L2916)
+ *
+ * PERMANENT-TODO: periodically check if the definitions are up to date.
+ *
+ * TODO: also, in the future, define these extension loaders based on the version of esbuild that is being used,
+ * using my `semver` resolver library from kitchensink.
+ *
+ * TODO: `".cts"` and `".mts"` both internally use a `LoaderTSNoAmbiguousLessThan` loader, which is different from a `LoaderTS`.
+ * however, the former is not exposed as a loader in javascript, where as the latter is.
+ * for now, I'm setting both `".cts"` and `".mts"` to load via the `"ts"` loader, but I don't know if there will be any negative consequences of this later.
+*/
+export const defaultExtensionToLoaderMap: Record<string, EsbuildLoaderType> = {
+	"": "js",
+	".js": "js",
+	".mjs": "js",
+	".cjs": "js",
+	".jsx": "jsx",
+	".ts": "ts",
+	".cts": "ts",
+	".mts": "js",
+	".tsx": "tsx",
+	".css": "css",
+	".module.css": "local-css",
+	".json": "json",
+	".txt": "text",
 }

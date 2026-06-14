@@ -1,21 +1,22 @@
 import { } from "@oazmi/kitchensink/crossenv"
 import { } from "@oazmi/kitchensink/pathman"
+import { isString } from "@oazmi/kitchensink/struct"
 
 
 export type * as esbuild from "@oazmi/esbuild-types"
-export { array_isEmpty, object_entries, object_assign, object_keys } from "@oazmi/kitchensink/alias"
+export { array_isEmpty, object_assign, object_entries, object_keys, promise_outside } from "@oazmi/kitchensink/alias"
 export { } from "@oazmi/kitchensink/crossenv"
-export { } from "@oazmi/kitchensink/pathman"
+export { ensureFileUrlIsLocalPath, getUriScheme, parseFilepathInfo, pathToPosixPath } from "@oazmi/kitchensink/pathman"
 export { } from "@oazmi/kitchensink/promiseman"
 export { } from "@oazmi/kitchensink/stringman"
-export { isArray, isString, isFunction } from "@oazmi/kitchensink/struct"
+export { isArray, isFunction, isString } from "@oazmi/kitchensink/struct"
 export type { MaybePromise } from "@oazmi/kitchensink/typedefs"
 
 /** flags used for minifying (or eliminating) debugging logs and asserts, when an intelligent bundler, such as `esbuild`, is used. */
 export const enum DEBUG {
 	LOG = 1,
 	ASSERT = 1,
-	ERROR = 0,
+	ERROR = 1,
 	PRODUCTION = 1,
 	MINIFY = 0,
 }
@@ -24,6 +25,10 @@ export const enum DEBUG {
 export const isNull = (obj: any): obj is (null | undefined) => {
 	return (obj === undefined) || (obj === null)
 }
+
+export const noop = (() => undefined)
+
+export const urlToString = (url: string | URL): string => { return isString(url) ? url : url.href }
 
 /** this utility type lets makes your typescript LSP auto-suggest literals defined in the input generic type `T`,
  * while also permitting arbitrary strings to be used.

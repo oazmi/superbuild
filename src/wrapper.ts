@@ -135,11 +135,11 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 					&& (handler_ns ? (handler_ns === namespace) : true)
 					&& (handler_loader ? handler_loader === loader : true)
 				) {
-					const { imports = {}, ...transform_result } = await handler.callback({
+					const { imports = [], ...transform_result } = await handler.callback({
 						contents: contents as (string | Uint8Array<ArrayBuffer>), loader, namespace, path, pluginData, resolveDir, suffix, with: withAttrs
 					}) ?? {}
 					// if the transformation did not generate any result (i.e. void) or generated no `content`, then we shall move to testing the next transformation handler.
-					if (isNull(transform_result?.contents)) { continue }
+					if (isNull(transform_result.contents)) { continue }
 					// there is no possibility of an error from the `onLoad` hook to be introduced, since we've already ruled it out before the loop.
 					// transform_result.errors = concatArrays(transform_result.errors, onload_result.errors)
 					transform_result.warnings = concatArrays(transform_result.warnings, onload_result.warnings)
