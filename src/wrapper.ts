@@ -1,3 +1,8 @@
+/** super-build lets you overload esbuild to expand what you're capable of doing in the plugin-api.
+ *
+ * @module
+*/
+
 import { array_isEmpty, isNull, object_assign, type MaybePromise } from "./deps.ts"
 import type {
 	Esbuild,
@@ -16,6 +21,7 @@ import type {
 	OnResolveOptions,
 } from "./esbuild/strongtypes.ts"
 import { concatArrays } from "./funcdefs.ts"
+import { nativeLoaderPlugin } from "./plugin/native_loader.ts"
 import type { OnTransformCallback, OnTransformHandler, OnTransformOptions } from "./typedefs.ts"
 
 
@@ -51,14 +57,22 @@ export class SuperBuild implements Esbuild {
 	public async build<T extends EsbuildBuildOptions>(options: T & {
 		[Key in Exclude<keyof T, keyof EsbuildBuildOptions>]: never
 	}): Promise<EsbuildBuildResult<T>> {
-		options.plugins = options.plugins?.map((plugin) => (new SuperPlugin(this, plugin)))
+		options.plugins ??= []
+		// insert the "native loader" at the last, so that esbuild never gets to load natively
+		// (which would bypass our `onLoad` overload, making all `onTransform` hooks unreachable).
+		options.plugins.push(nativeLoaderPlugin())
+		options.plugins = options.plugins.map((plugin) => (new SuperPlugin(this, plugin)))
 		return this.#esbuild.build(options)
 	}
 
 	public buildSync<T extends EsbuildBuildOptions>(options: T & {
 		[Key in Exclude<keyof T, keyof EsbuildBuildOptions>]: never
 	}): EsbuildBuildResult<T> {
-		options.plugins = options.plugins?.map((plugin) => (new SuperPlugin(this, plugin)))
+		options.plugins ??= []
+		// insert the "native loader" at the last, so that esbuild never gets to load natively
+		// (which would bypass our `onLoad` overload, making all `onTransform` hooks unreachable).
+		options.plugins.push(nativeLoaderPlugin())
+		options.plugins = options.plugins.map((plugin) => (new SuperPlugin(this, plugin)))
 		return this.#esbuild.buildSync(options)
 	}
 }
