@@ -107,6 +107,9 @@ export type EsbuildPluginBuild = esbuild.PluginBuild
 /** type alias for `esbuild.Loader`. */
 export type EsbuildLoaderType = esbuild.Loader
 
+/** type alias for `esbuild.Loader | undefined`. */
+export type EsbuildLoaderTypeOrEmpty = EsbuildLoaderType | undefined
+
 /** type alias for `esbuild.Message`. */
 export type EsbuildMessage = esbuild.Message
 

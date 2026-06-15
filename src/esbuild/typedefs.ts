@@ -7,7 +7,7 @@
 */
 
 import type { AbsolutePath } from "../typedefs.ts"
-import type { EsbuildLoaderType } from "./strongtypes.ts"
+import type { EsbuildLoaderTypeOrEmpty } from "./strongtypes.ts"
 import type { EsbuildLoaderTypeCompatible } from "./weaktypes.ts"
 
 
@@ -119,6 +119,13 @@ export interface EsbuildOutputFile {
  * it is roughly based on the following esbuild function:
  * [`"/internal/bundler/bundler.go":DefaultExtensionToLoaderMap`](https://github.com/evanw/esbuild/blob/6ff1d8b0d8c134e867a397eef39702a223ebef9e/internal/bundler/bundler.go#L2916)
  *
+ * > [!note]
+ * > one important distinction to note down is the fact that the loader for the "no extension" case (`""` empty string) is `undefined`,
+ * > meaning that it will use esbuild's own default loader for it (which happens to be `"js"` for such cases).
+ * >
+ * > the reason why we don't directly assign a `"js"` loader to this case is because our super-build's transformer hooks may utilize the knowledge of whether a "default" was originally passed,
+ * > or if an actual "js" loader was intended to be used by the prior `onLoad` hook's callback.
+ *
  * PERMANENT-TODO: periodically check if the definitions are up to date.
  *
  * TODO: also, in the future, define these extension loaders based on the version of esbuild that is being used,
@@ -128,8 +135,8 @@ export interface EsbuildOutputFile {
  * however, the former is not exposed as a loader in javascript, where as the latter is.
  * for now, I'm setting both `".cts"` and `".mts"` to load via the `"ts"` loader, but I don't know if there will be any negative consequences of this later.
 */
-export const defaultExtensionToLoaderMap: Record<string, EsbuildLoaderType> = {
-	"": "js",
+export const defaultExtensionToLoaderMap: Record<string, EsbuildLoaderTypeOrEmpty> = {
+	"": undefined,
 	".js": "js",
 	".mjs": "js",
 	".cjs": "js",
