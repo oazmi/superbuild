@@ -110,6 +110,12 @@ export type EsbuildLoaderType = esbuild.Loader
 /** type alias for `esbuild.Loader | undefined`. */
 export type EsbuildLoaderTypeOrEmpty = EsbuildLoaderType | undefined
 
+/** type alias for `esbuild.ImportKind`. */
+export type EsbuildImportKind = esbuild.ImportKind
+
+/** type alias for `esbuild.ImportKind | "file-loader"`. */
+export type EsbuildOutputsImportKind = esbuild.Metafile["outputs"][number]["imports"][number]["kind"]
+
 /** type alias for `esbuild.Message`. */
 export type EsbuildMessage = esbuild.Message
 

@@ -70,6 +70,10 @@ export interface OnTransformArgs {
 	 * > hence, in order to preserve it during native loading,
 	 * > we might have to instill a `"file"` namespace loader that will capture all native loading cases,
 	 * > and then perform the loading ourselves, followed by preserving the plugin-data.
+	 * >
+	 * > TODO: actually, right now, I'm intentionally stripping away the `pluginData` in my "native loader".
+	 * > I'll have to see how much of an inconvenience it becomes before I give in to preserving the plugin-data.
+	 * > otherwise, if I can manage to write plugins without needing this feature, then there's no reason to add it.
 	*/
 	pluginData: any
 
@@ -149,4 +153,7 @@ export interface ImportEntity<K = any> {
 	key: K
 	path: string
 	with: Record<string, string>
+	// will I need the information below?
+	// kind: EsbuildOutputsImportKind
+	// external?: boolean
 }

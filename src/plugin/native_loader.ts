@@ -35,7 +35,8 @@ export const nativeLoaderPluginSetup = (): EsbuildPluginSetup => {
 				return { errors: [{ detail: message },] }
 			}
 			const contents = await response.bytes()
-			// TODO: to mimic esbuild's native loader behavior, we don't pass the `args.pluginData` (even though, I'd like pass it).
+			// to mimic esbuild's native loader behavior, we don't pass the `args.pluginData` (even though, I'd like pass it).
+			// TODO: though, what if I were to pass it over? how bad would it be? will it realistically affect any existing popular plugin?
 			return { contents, loader, resolveDir, watchFiles: [path] }
 		})
 	}

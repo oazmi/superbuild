@@ -21,10 +21,13 @@ import type {
 	OnResolveOptions,
 } from "./esbuild/strongtypes.ts"
 import { concatArrays } from "./funcdefs.ts"
+import { longBuildPlugin, LongBuildPluginSharedController } from "./plugin/long_build.ts"
 import { nativeLoaderPlugin } from "./plugin/native_loader.ts"
 import type { OnTransformCallback, OnTransformHandler, OnTransformOptions } from "./typedefs.ts"
 
 
+// TODO: I'm realizing that using `SuperBuild` as a context is not a good idea, because it can only carry out a single `build()`,
+// and any follow up builds will be contaminated. I should create a new `SuperBuildContext` class to solve this issue.
 export class SuperBuild implements Esbuild {
 	declare public version: Esbuild["version"]
 	declare public analyzeMetafile: Esbuild["analyzeMetafile"]
@@ -40,6 +43,8 @@ export class SuperBuild implements Esbuild {
 	declare public stop: Esbuild["stop"]
 	#esbuild: Esbuild
 
+	public longBuildController!: LongBuildPluginSharedController
+
 	/** contains a list of transformation handlers that will be used for matching contents returned by the plugins' `onLoad` hooks,
 	 * in order to transfer them to the registered {@link SuperPluginBuild.onTransform} hooks.
 	 *
@@ -54,28 +59,33 @@ export class SuperBuild implements Esbuild {
 		object_assign(this, rest_props)
 	}
 
-	public async build<T extends EsbuildBuildOptions>(options: T & {
-		[Key in Exclude<keyof T, keyof EsbuildBuildOptions>]: never
-	}): Promise<EsbuildBuildResult<T>> {
+	protected processPlugins(options: EsbuildBuildOptions): EsbuildBuildOptions {
 		options.plugins ??= []
 		// insert the "native loader" at the last, so that esbuild never gets to load natively
 		// (which would bypass our `onLoad` overload, making all `onTransform` hooks unreachable).
 		options.plugins.push(nativeLoaderPlugin())
+		// insert a longbuild plugin at the very beginning so that it can intercept all incoming files.
+		const shared_controller = new LongBuildPluginSharedController()
+		this.longBuildController = shared_controller
+		options.plugins.unshift(longBuildPlugin({ sharedController: shared_controller }))
 		options.plugins = options.plugins.map((plugin) => (new SuperPlugin(this, plugin)))
-		return this.#esbuild.build(options)
+		return options
+	}
+
+	public async build<T extends EsbuildBuildOptions>(options: T & {
+		[Key in Exclude<keyof T, keyof EsbuildBuildOptions>]: never
+	}): Promise<EsbuildBuildResult<T>> {
+		return this.#esbuild.build(this.processPlugins(options))
 	}
 
 	public buildSync<T extends EsbuildBuildOptions>(options: T & {
 		[Key in Exclude<keyof T, keyof EsbuildBuildOptions>]: never
 	}): EsbuildBuildResult<T> {
-		options.plugins ??= []
-		// insert the "native loader" at the last, so that esbuild never gets to load natively
-		// (which would bypass our `onLoad` overload, making all `onTransform` hooks unreachable).
-		options.plugins.push(nativeLoaderPlugin())
-		options.plugins = options.plugins.map((plugin) => (new SuperPlugin(this, plugin)))
-		return this.#esbuild.buildSync(options)
+		return this.#esbuild.buildSync(this.processPlugins(options))
 	}
 }
+
+export type SuperPluginSetup = (build: SuperPluginBuild) => MaybePromise<void>
 
 export class SuperPlugin implements EsbuildPlugin {
 	protected basePlugin: EsbuildPlugin
@@ -112,7 +122,12 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 	}
 
 	public resolve(path: string, options?: EsbuildResolveOptions): Promise<EsbuildResolveResult> {
-		return this.basePluginBuild.resolve(path, options)
+		const result = this.basePluginBuild.resolve(path, options)
+		// we must decrement the `remainingFilesCounter` of the long-build plugin,
+		// because the `resolve` function will trigger its `onResolve` hook,
+		// leading to a double count (which we compensate for by decrementing).
+		this.ctx.longBuildController.remainingFilesCounter--
+		return result
 	}
 
 	public onStart(callback: () => MaybePromise<EsbuildOnStartResult | null | void>): void {
@@ -128,8 +143,10 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 	}
 
 	public onLoad(options: OnLoadOptions, callback: OnLoadCallback): void {
-		const onTransformHandlers = this.ctx.onTransformHandlers
-		const new_callback: OnLoadCallback = async (args) => {
+		const
+			onTransformHandlers = this.ctx.onTransformHandlers,
+			long_build_controller = this.ctx.longBuildController
+		const transform_interceptor_callback: OnLoadCallback = async (args) => {
 			const
 				{ namespace, path, suffix, with: withAttrs } = args,
 				onload_result = await callback(args)
@@ -169,7 +186,18 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 			// hence we shall return the original result directly to esbuild.
 			return onload_result as any
 		}
-		return this.basePluginBuild.onLoad(options, new_callback)
+		const long_build_interceptor_callback: OnLoadCallback = (args) => {
+			const result = transform_interceptor_callback(args)
+			// every loaded result indicates that a file has gone out of circulation,
+			// and hence we must decrement the `remainingFilesCounter` of the long-build plugin.
+			long_build_controller.remainingFilesCounter--
+			if (long_build_controller.remainingFilesCounter <= 0) {
+				long_build_controller.buildResolves[long_build_controller.buildNumber]()
+			}
+			return result
+		}
+
+		return this.basePluginBuild.onLoad(options, long_build_interceptor_callback)
 	}
 
 	public onDispose(callback: () => void): void {
