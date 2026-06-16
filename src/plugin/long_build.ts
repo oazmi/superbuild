@@ -15,16 +15,16 @@ import type { SuperPluginBuild } from "../wrapper.ts"
 
 export class LongBuildPluginController {
 	/** the unique base filename that will be used by the {@link longBuildPluginSetup} plugin to insert its "long build" js file as an entry-point.
-	 * the full filename format it will use will be: `${recursion_number}.js.<${uuid}>`.
+	 * the full filename format it will use will be: `${recursion_number}.(${uuid}).js`.
 	*/
 	public readonly uuid: string
 
 	/** the unique filename(s) that will be used for the "long build" js files.
-	 * it is a computed value that evaluates to `.js.<${uuid}>`,
+	 * it is a computed value that evaluates to `.(${uuid}).js`,
 	 * and the actual filename that gets inserted/injected will also have a leading number, signifying the "build/recursion number".
 	 *
-	 * for instance, the entry-point long build js file will be named: `0.js.<${uuid}>`,
-	 * while the next recursive "long build" import within the `0.js.<${uuid}>` file will be named `1.js.<${uuid}>`,
+	 * for instance, the entry-point long build js file will be named: `0.(${uuid}).js`,
+	 * while the next recursive "long build" import within the `0.(${uuid}).js` file will be named `1.(${uuid}).js`,
 	 * and so on (until a "long build" js file with zero external imports/includes is discovered, at which point we shall halt).
 	*/
 	public readonly baseFilename: string
@@ -56,7 +56,7 @@ export class LongBuildPluginController {
 		// TODO: `crypto.randomUUID` is not available in `http` connections. so I might want to polyfill it in the future.
 		const uuid = crypto.randomUUID()
 		this.uuid = uuid
-		this.baseFilename = `.js.<${uuid}>`
+		this.baseFilename = `.(${uuid}).js`
 		this.remainingFilesCounter = 0
 		this.buildNumber = -1
 		this.incrementBuild()

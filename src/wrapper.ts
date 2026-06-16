@@ -3,7 +3,7 @@
  * @module
 */
 
-import { array_isEmpty, isNull, object_assign, type MaybePromise } from "./deps.ts"
+import { array_isEmpty, isArray, isNull, object_assign, parseFilepathInfo, type MaybePromise } from "./deps.ts"
 import type {
 	Esbuild,
 	EsbuildBuildOptions,
@@ -84,8 +84,18 @@ export class SuperBuildContext {
 		// (which would bypass our `onLoad` overload, making all `onTransform` hooks unreachable).
 		options.plugins.push(nativeLoaderPlugin())
 		// insert a longbuild plugin at the very beginning so that it can intercept all incoming files.
-		options.plugins.unshift(longBuildPlugin({ controller: this.longBuildController }))
+		const controller = this.longBuildController
+		options.plugins.unshift(longBuildPlugin({ controller }))
 		options.plugins = options.plugins.map((plugin) => (new SuperPlugin(this, plugin)))
+		// we also insert the unique long build entry point to the options.
+		const long_build_filename = `${controller.buildNumber}${controller.baseFilename}`
+		const entryPoints = (options.entryPoints ??= [])
+		if (isArray(entryPoints)) {
+			entryPoints.push(long_build_filename)
+		} else {
+			// stripping away the ".js" extension from the filename.
+			entryPoints[long_build_filename] = parseFilepathInfo(long_build_filename).basename
+		}
 		return options
 	}
 }
@@ -93,18 +103,25 @@ export class SuperBuildContext {
 export type SuperPluginSetup = (build: SuperPluginBuild) => MaybePromise<void>
 
 export class SuperPlugin implements EsbuildPlugin {
-	protected basePlugin: EsbuildPlugin
-	protected ctx: SuperBuildContext
+	// unfortunately, esbuild disallows any enumerable custom property to be set on the plugin `Object`.
+	// hence, we declare all custom properties as private, so that esbuild does not discover them.
+	// in the future, I may consider turning it into non-enumerable properties rather than private ones, if class extensions are desired.
+	#basePlugin: EsbuildPlugin
+	#ctx: SuperBuildContext
+
 	public name: string
+	public setup: (build: EsbuildPluginBuild) => MaybePromise<void>
 
 	constructor(ctx: SuperBuildContext, base_plugin: EsbuildPlugin) {
-		this.basePlugin = base_plugin
-		this.ctx = ctx
+		this.#basePlugin = base_plugin
+		this.#ctx = ctx
 		this.name = base_plugin.name
-	}
-
-	public setup(build: EsbuildPluginBuild): MaybePromise<void> {
-		return this.basePlugin.setup(new SuperPluginBuild(this.ctx, build, this.name))
+		// esbuild strips away the setup function from its host object, effectively removing the `this` context.
+		// thus, we define the setup function as a closure rather than a method.
+		const self = this
+		this.setup = (build: EsbuildPluginBuild): MaybePromise<void> => {
+			return self.#basePlugin.setup(new SuperPluginBuild(self.#ctx, build, self.name))
+		}
 	}
 }
 
@@ -171,8 +188,9 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 					&& (handler_ns ? (handler_ns === namespace) : true)
 					&& (handler_loader ? handler_loader === loader : true)
 				) {
-					const { imports, ...transform_result } = await handler.callback({
-						contents: contents as (string | Uint8Array<ArrayBuffer>), loader, namespace, path, pluginData, resolveDir, suffix, with: withAttrs
+					const { imports = [], ...transform_result } = await handler.callback({
+						contents: contents as (string | Uint8Array<ArrayBuffer>),
+						loader, namespace, path, pluginData, resolveDir, suffix, with: withAttrs,
 					}) ?? {}
 					// if the transformation did not generate any result (i.e. void) or generated no `content`, then we shall move to testing the next transformation handler.
 					if (isNull(transform_result.contents)) { continue }
@@ -182,8 +200,9 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 					transform_result.watchDirs = concatArrays(transform_result.watchDirs, onload_result.watchDirs)
 					transform_result.watchFiles = concatArrays(transform_result.watchDirs, onload_result.watchFiles)
 					transform_result.pluginName ??= transformerPluginName
-					// TODO: handle `imports` via the recursive "longbuild.js" + sub-builds technique.
-					if (imports && imports.length > 0) { long_build_controller.pushImports(path, imports) }
+					// TODO: we must resolve all `imports` with respect to the current importer's `path`, and the currently available `pluginData` (from the `onLoad`).
+					// OR: maybe we should look at `args.importer` during the long build's `onResolve` stage, and then take action from there?
+					if (imports.length > 0) { long_build_controller.pushImports(path, imports) }
 					return transform_result satisfies OnLoadResult
 				}
 			}
