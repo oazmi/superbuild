@@ -12,7 +12,7 @@ import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs,
 import type { SuperPluginBuild } from "../wrapper.ts"
 
 
-export class LongBuildPluginSharedController {
+export class LongBuildPluginController {
 	/** the unique base filename that will be used by the {@link longBuildPluginSetup} plugin to insert its "long build" js file as an entry-point.
 	 * the full filename format it will use will be: `${recursion_number}.js.<${uuid}>`.
 	*/
@@ -69,7 +69,7 @@ export class LongBuildPluginSharedController {
 }
 
 export interface LongBuildPluginSetupConfig {
-	sharedController: LongBuildPluginSharedController
+	controller: LongBuildPluginController
 }
 
 /** this plugin captures **all** file-namespace imports, and mimics esbuild's native file-loading by using `fetch`,
@@ -80,15 +80,15 @@ export interface LongBuildPluginSetupConfig {
 */
 export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): EsbuildPluginSetup => {
 	const
-		shared_controller = config.sharedController,
-		longbuild_base_filename = shared_controller.baseFilename,
-		plugin_namespace = `oazmi-superbuild-long_build-plugin-${shared_controller.uuid}`
+		controller = config.controller,
+		longbuild_base_filename = controller.baseFilename,
+		plugin_namespace = `oazmi-superbuild-long_build-plugin-${controller.uuid}`
 
 	return (build: EsbuildPluginBuild) => {
 		build.onResolve({ filter: /.*/ }, (args: OnResolveArgs) => {
 			if (!args.path.endsWith(longbuild_base_filename)) {
 				// increment the `remainingFilesCounter` for each file that enters, in order to known when to halt.
-				shared_controller.remainingFilesCounter++
+				controller.remainingFilesCounter++
 				return undefined
 			}
 			// the "long build" js files themselves do not get included in the `remainingFilesCounter`.
@@ -104,12 +104,12 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 				filename = args.path,
 				build_number = Number(filename.slice(0, -longbuild_base_filename.length))
 			// wait for super-build to externally resolve the promise below to signal that the `remainingFilesCounter` has dropped to zero.
-			await shared_controller.buildPromises[build_number]
-			shared_controller.incrementBuild()
+			await controller.buildPromises[build_number]
+			controller.incrementBuild()
 			return {
 				contents: `
 console.log("long build: ${build_number}")
-// import "${shared_controller.buildNumber}${longbuild_base_filename}" // recursion
+// import "${controller.buildNumber}${longbuild_base_filename}" // recursion
 				`,
 				loader: "js",
 			}

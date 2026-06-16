@@ -21,13 +21,11 @@ import type {
 	OnResolveOptions,
 } from "./esbuild/strongtypes.ts"
 import { concatArrays } from "./funcdefs.ts"
-import { longBuildPlugin, LongBuildPluginSharedController } from "./plugin/long_build.ts"
+import { longBuildPlugin, LongBuildPluginController } from "./plugin/long_build.ts"
 import { nativeLoaderPlugin } from "./plugin/native_loader.ts"
 import type { OnTransformCallback, OnTransformHandler, OnTransformOptions } from "./typedefs.ts"
 
 
-// TODO: I'm realizing that using `SuperBuild` as a context is not a good idea, because it can only carry out a single `build()`,
-// and any follow up builds will be contaminated. I should create a new `SuperBuildContext` class to solve this issue.
 export class SuperBuild implements Esbuild {
 	declare public version: Esbuild["version"]
 	declare public analyzeMetafile: Esbuild["analyzeMetafile"]
@@ -43,8 +41,29 @@ export class SuperBuild implements Esbuild {
 	declare public stop: Esbuild["stop"]
 	#esbuild: Esbuild
 
-	public longBuildController!: LongBuildPluginSharedController
+	constructor(base_esbuild: Esbuild) {
+		this.#esbuild = base_esbuild
+		const { build, buildSync, ...rest_props } = base_esbuild
+		object_assign(this, rest_props)
+	}
 
+	public async build<T extends EsbuildBuildOptions>(options: T & {
+		[Key in Exclude<keyof T, keyof EsbuildBuildOptions>]: never
+	}): Promise<EsbuildBuildResult<T>> {
+		const new_ctx = new SuperBuildContext()
+		return this.#esbuild.build(new_ctx.processPlugins(options))
+	}
+
+	public buildSync<T extends EsbuildBuildOptions>(options: T & {
+		[Key in Exclude<keyof T, keyof EsbuildBuildOptions>]: never
+	}): EsbuildBuildResult<T> {
+		const new_ctx = new SuperBuildContext()
+		return this.#esbuild.buildSync(new_ctx.processPlugins(options))
+	}
+}
+
+/** a centralized context is created for each individual {@link SuperBuild.build} call. */
+export class SuperBuildContext {
 	/** contains a list of transformation handlers that will be used for matching contents returned by the plugins' `onLoad` hooks,
 	 * in order to transfer them to the registered {@link SuperPluginBuild.onTransform} hooks.
 	 *
@@ -53,35 +72,21 @@ export class SuperBuild implements Esbuild {
 	*/
 	public onTransformHandlers: OnTransformHandler[] = []
 
-	constructor(base_esbuild: Esbuild) {
-		this.#esbuild = base_esbuild
-		const { build, buildSync, ...rest_props } = base_esbuild
-		object_assign(this, rest_props)
+	public longBuildController: LongBuildPluginController
+
+	constructor() {
+		this.longBuildController = new LongBuildPluginController()
 	}
 
-	protected processPlugins(options: EsbuildBuildOptions): EsbuildBuildOptions {
+	public processPlugins(options: EsbuildBuildOptions): EsbuildBuildOptions {
 		options.plugins ??= []
 		// insert the "native loader" at the last, so that esbuild never gets to load natively
 		// (which would bypass our `onLoad` overload, making all `onTransform` hooks unreachable).
 		options.plugins.push(nativeLoaderPlugin())
 		// insert a longbuild plugin at the very beginning so that it can intercept all incoming files.
-		const shared_controller = new LongBuildPluginSharedController()
-		this.longBuildController = shared_controller
-		options.plugins.unshift(longBuildPlugin({ sharedController: shared_controller }))
+		options.plugins.unshift(longBuildPlugin({ controller: this.longBuildController }))
 		options.plugins = options.plugins.map((plugin) => (new SuperPlugin(this, plugin)))
 		return options
-	}
-
-	public async build<T extends EsbuildBuildOptions>(options: T & {
-		[Key in Exclude<keyof T, keyof EsbuildBuildOptions>]: never
-	}): Promise<EsbuildBuildResult<T>> {
-		return this.#esbuild.build(this.processPlugins(options))
-	}
-
-	public buildSync<T extends EsbuildBuildOptions>(options: T & {
-		[Key in Exclude<keyof T, keyof EsbuildBuildOptions>]: never
-	}): EsbuildBuildResult<T> {
-		return this.#esbuild.buildSync(this.processPlugins(options))
 	}
 }
 
@@ -89,10 +94,10 @@ export type SuperPluginSetup = (build: SuperPluginBuild) => MaybePromise<void>
 
 export class SuperPlugin implements EsbuildPlugin {
 	protected basePlugin: EsbuildPlugin
-	protected ctx: SuperBuild
+	protected ctx: SuperBuildContext
 	public name: string
 
-	constructor(ctx: SuperBuild, base_plugin: EsbuildPlugin) {
+	constructor(ctx: SuperBuildContext, base_plugin: EsbuildPlugin) {
 		this.basePlugin = base_plugin
 		this.ctx = ctx
 		this.name = base_plugin.name
@@ -104,13 +109,13 @@ export class SuperPlugin implements EsbuildPlugin {
 }
 
 export class SuperPluginBuild implements EsbuildPluginBuild {
-	protected ctx: SuperBuild
+	protected ctx: SuperBuildContext
 	protected basePluginBuild: EsbuildPluginBuild
 	protected readonly pluginName: string
 	public initialOptions: EsbuildBuildOptions
 	public readonly esbuild: SuperBuild
 
-	constructor(ctx: SuperBuild, base_plugin_build: EsbuildPluginBuild, plugin_name: string) {
+	constructor(ctx: SuperBuildContext, base_plugin_build: EsbuildPluginBuild, plugin_name: string) {
 		this.ctx = ctx
 		this.basePluginBuild = base_plugin_build
 		this.pluginName = plugin_name
