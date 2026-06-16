@@ -171,7 +171,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 					&& (handler_ns ? (handler_ns === namespace) : true)
 					&& (handler_loader ? handler_loader === loader : true)
 				) {
-					const { imports = [], ...transform_result } = await handler.callback({
+					const { imports, ...transform_result } = await handler.callback({
 						contents: contents as (string | Uint8Array<ArrayBuffer>), loader, namespace, path, pluginData, resolveDir, suffix, with: withAttrs
 					}) ?? {}
 					// if the transformation did not generate any result (i.e. void) or generated no `content`, then we shall move to testing the next transformation handler.
@@ -183,6 +183,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 					transform_result.watchFiles = concatArrays(transform_result.watchDirs, onload_result.watchFiles)
 					transform_result.pluginName ??= transformerPluginName
 					// TODO: handle `imports` via the recursive "longbuild.js" + sub-builds technique.
+					if (imports && imports.length > 0) { long_build_controller.pushImports(path, imports) }
 					return transform_result satisfies OnLoadResult
 				}
 			}

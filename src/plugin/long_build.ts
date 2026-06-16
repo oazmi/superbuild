@@ -7,8 +7,9 @@
  * @module
 */
 
-import { escapeLiteralStringForRegex, parseFilepathInfo, promiseOutside } from "../deps.ts"
+import { array_isEmpty, escapeLiteralStringForRegex, json_stringify, parseFilepathInfo, promiseOutside } from "../deps.ts"
 import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs, OnResolveArgs } from "../esbuild/strongtypes.ts"
+import type { ImportEntity } from "../typedefs.ts"
 import type { SuperPluginBuild } from "../wrapper.ts"
 
 
@@ -49,6 +50,8 @@ export class LongBuildPluginController {
 
 	public readonly buildResolves: Array<() => void> = []
 
+	public readonly resourceImports: Array<Map<string, ImportEntity[]>> = []
+
 	constructor() {
 		// TODO: `crypto.randomUUID` is not available in `http` connections. so I might want to polyfill it in the future.
 		const uuid = crypto.randomUUID()
@@ -63,8 +66,76 @@ export class LongBuildPluginController {
 		const [promise, resolve, reject] = promiseOutside<void>()
 		this.buildPromises.push(promise)
 		this.buildResolves.push(resolve)
+		this.resourceImports.push(new Map<string, ImportEntity[]>())
 		// @ts-ignore: hey! that's illegal, IN AMERICA! - bandit kieth
 		this.buildNumber++
+	}
+
+	pushImports(importer_key: string, imports: ImportEntity[]) {
+		this.resourceImports[this.buildNumber].set(importer_key, imports)
+	}
+
+	/** prepares the file contents of the "long build" of the given `build_number`.
+	 *
+	 * you would use this once you have deduced that all files that were in circulation in the current build have exited,
+	 * and therefore your long build plugin must also halt by loading the contents prepared here by this method.
+	 *
+	 * > [!caution]
+	 * > the file's contents are in typescript rather than javascript.
+	 * > so make sure to use the `"ts"` esbuild loader for it.
+	*/
+	prepareLongBuildFileContent(build_number: number): string {
+		const all_imports_this_build = [...this.resourceImports[build_number].entries()]
+		const all_imports_js_str = all_imports_this_build.map(([importer_key, imports_arr]) => {
+			const imports_str_arr = imports_arr.map((import_entity) => {
+				const
+					{ key, path, with: with_attr } = import_entity,
+					key_str = json_stringify(key),
+					path_str = json_stringify(path),
+					with_str = json_stringify(with_attr)
+				// TODO: add with attribute support.
+				// return `import(${path_str}, { with: { importer: "" } })`
+				return `{ key: ${key_str}, path: await import(${path_str}), with: ${with_str} }`
+			})
+			const imports_str = imports_str_arr.join(",\n\t")
+			const importer_key_str = json_stringify(importer_key)
+			return `
+resourceImports.set(${importer_key_str}, [\n\t${imports_str}\n])
+			`.trim()
+		})
+
+		const recursion_import_statement = !array_isEmpty(all_imports_this_build)
+			? `import "${build_number}${this.baseFilename}" // recursion to the next long-build.`
+			: "// no imports were pushed this build-number. hence, this is the final long-build file."
+		return `
+console.log("long build: ${build_number}")
+
+interface ImportEntity<K = any> {
+	key: K
+	path: any
+	with: Record<string, string>
+}
+
+export const resourceImports: Map<
+	string,        // the importer's key.
+	ImportEntity[] // all of the entities imported by the importer.
+> = new Map()
+
+${all_imports_js_str}
+${recursion_import_statement}
+		`.trim()
+	}
+
+	/** this function does the inverse of {@link prepareLongBuildFileContent};
+	 * it parses the js-transpiled contents of the "long build" file and extracts/reconstructs the resource import `Map` from it.
+	 *
+	 * since I plan on using a dynamic script `import()` to execute the contents of a modified version of the "long build" file content,
+	 * this method has to be made asynchronous.
+	 * I'm certainly not going to be using `eval` or the `Function` constructor, because they are often restricted in some js-environments.
+	*/
+	async parseLongBuildFileContent(): Promise<Map<string, ImportEntity[]>> {
+		// TODO: implement.
+		return new Map()
 	}
 }
 
@@ -105,14 +176,9 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 				build_number = Number(filename.slice(0, -longbuild_base_filename.length))
 			// wait for super-build to externally resolve the promise below to signal that the `remainingFilesCounter` has dropped to zero.
 			await controller.buildPromises[build_number]
+			const contents = controller.prepareLongBuildFileContent(build_number)
 			controller.incrementBuild()
-			return {
-				contents: `
-console.log("long build: ${build_number}")
-// import "${controller.buildNumber}${longbuild_base_filename}" // recursion
-				`,
-				loader: "js",
-			}
+			return { contents, loader: "ts" }
 		})
 	}
 }

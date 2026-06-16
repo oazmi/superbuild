@@ -4,7 +4,8 @@ import { isString } from "@oazmi/kitchensink/struct"
 
 
 export type * as esbuild from "@oazmi/esbuild-types"
-export { array_isEmpty, json_stringify, object_assign, object_entries, object_keys, promise_outside } from "@oazmi/kitchensink/alias"
+export { array_isEmpty, console_log, json_stringify, object_assign, object_entries, object_keys, promise_outside } from "@oazmi/kitchensink/alias"
+export { bind_array_push } from "@oazmi/kitchensink/binder"
 export { } from "@oazmi/kitchensink/crossenv"
 export { ensureFileUrlIsLocalPath, fileUrlToLocalPath, getUriScheme, parseFilepathInfo, pathToPosixPath, resolveAsUrl } from "@oazmi/kitchensink/pathman"
 export { promiseOutside } from "@oazmi/kitchensink/promiseman"
