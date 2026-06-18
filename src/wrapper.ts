@@ -148,7 +148,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 		// we must decrement the `remainingFilesCounter` of the long-build plugin,
 		// because the `resolve` function will trigger its `onResolve` hook,
 		// leading to a double count (which we compensate for by decrementing).
-		this.ctx.longBuildController.remainingFilesCounter--
+		this.ctx.longBuildController.decrementFilesCounter(path)
 		return result
 	}
 
@@ -161,7 +161,17 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 	}
 
 	public onResolve(options: OnResolveOptions, callback: OnResolveCallback): void {
-		return this.basePluginBuild.onResolve(options, callback)
+		// TODO-ISSUE: esbuild's own native resolver never makes it to here because it gets resolved internally, bypassing the plugin api.
+		// hence, our cached resolved check is rendered useless because of it.
+		// in order to fix that, we will unfortunately have to mimic esbuild's native node resolver.
+		// luckily for me, I had already done something similar in my `esbuild-plugin-deno` library, without adding dependencies. so it is achievable.
+		const long_build_controller = this.ctx.longBuildController
+		const new_callback: OnResolveCallback = async (args) => {
+			const result = await callback(args)
+			long_build_controller.cacheResolvedResult(result)
+			return result
+		}
+		return this.basePluginBuild.onResolve(options, new_callback)
 	}
 
 	public onLoad(options: OnLoadOptions, callback: OnLoadCallback): void {
@@ -200,8 +210,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 					transform_result.watchDirs = concatArrays(transform_result.watchDirs, onload_result.watchDirs)
 					transform_result.watchFiles = concatArrays(transform_result.watchDirs, onload_result.watchFiles)
 					transform_result.pluginName ??= transformerPluginName
-					// TODO: we must resolve all `imports` with respect to the current importer's `path`, and the currently available `pluginData` (from the `onLoad`).
-					// OR: maybe we should look at `args.importer` during the long build's `onResolve` stage, and then take action from there?
+					// NOTE: the plugin writer must ensure that their import paths are pre-resolved (not relative, nor contextually dependent).
 					if (imports.length > 0) { long_build_controller.pushImports(path, imports) }
 					return transform_result satisfies OnLoadResult
 				}
@@ -211,11 +220,11 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 			// hence we shall return the original result directly to esbuild.
 			return onload_result as any
 		}
-		const long_build_interceptor_callback: OnLoadCallback = (args) => {
-			const result = transform_interceptor_callback(args)
+		const long_build_interceptor_callback: OnLoadCallback = async (args) => {
+			const result = await transform_interceptor_callback(args)
 			// every loaded result indicates that a file has gone out of circulation,
 			// and hence we must decrement the `remainingFilesCounter` of the long-build plugin.
-			long_build_controller.remainingFilesCounter--
+			long_build_controller.decrementFilesCounter(args.path)
 			if (long_build_controller.remainingFilesCounter <= 0) {
 				long_build_controller.buildResolves[long_build_controller.buildNumber]()
 			}

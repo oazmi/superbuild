@@ -7,11 +7,25 @@
  * @module
 */
 
-import { array_isEmpty, escapeLiteralStringForRegex, json_stringify, parseFilepathInfo, promiseOutside } from "../deps.ts"
-import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs, OnResolveArgs } from "../esbuild/strongtypes.ts"
+import { array_isEmpty, escapeLiteralStringForRegex, json_stringify, parseFilepathInfo, pathToPosixPath, promiseOutside } from "../deps.ts"
+import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs, OnResolveArgs, OnResolveResult } from "../esbuild/strongtypes.ts"
+import { cancelableDelayedPromiseResolver } from "../funcdefs.ts"
 import type { ImportEntity } from "../typedefs.ts"
 import type { SuperPluginBuild } from "../wrapper.ts"
 
+
+const enum LONGBUILD {
+	/** the minimum amount of time (in ms) that the long build will wait before concluding its `contents`,
+	 * after it has determined that no active files remain in circulation.
+	 * if a new file is suddenly introduced while the longbuild is waiting for this delay to complete, it will halt the timer,
+	 * and wait for all new files in the circulation to complete before beginning this countdown again.
+	 *
+	 * ideally, this should be set to a safe high value,
+	 * where you can be certain that esbuild's go-side transpiler/transformer won't take any longer than that to transform a single file in your bundle.
+	 * i.e. the lower bound of this enum value = `max(...all_bundled_files.map((file) => get_transpilation_time(file))`
+	*/
+	ONLOAD_MIN_DELAY = 500
+}
 
 export class LongBuildPluginController {
 	/** the unique base filename that will be used by the {@link longBuildPluginSetup} plugin to insert its "long build" js file as an entry-point.
@@ -46,9 +60,18 @@ export class LongBuildPluginController {
 	*/
 	public remainingFilesCounter: number
 
+	/** esbuild caches the loaded result of an `onLoad` hook, based on the result of the `onResolve` hook's `result.path` and `result.namespace`
+	 * (I don't know if esbuild also caches with respect to the `with` import attribute).
+	 * but we don't want to count any cached paths towards {@link remainingFilesCounter}, since they won't be loaded again;
+	 * which is why we need this hash-set to keep track of what has already been seen once.
+	*/
+	protected encounteredPaths: Set<string> = new Set()
+
 	public readonly buildPromises: Array<Promise<void>> = []
 
 	public readonly buildResolves: Array<() => void> = []
+
+	public readonly buildResolveCancels: Array<() => void> = []
 
 	public readonly resourceImports: Array<Map<string, ImportEntity[]>> = []
 
@@ -62,16 +85,54 @@ export class LongBuildPluginController {
 		this.incrementBuild()
 	}
 
-	incrementBuild() {
-		const [promise, resolve, reject] = promiseOutside<void>()
+	public incrementBuild() {
+		const
+			[promise, resolve, reject] = promiseOutside<void>(),
+			[cancelable_resolver, cancel_resolver] = cancelableDelayedPromiseResolver(resolve, LONGBUILD.ONLOAD_MIN_DELAY)
+		this.remainingFilesCounter = 0
+		this.buildResolveCancels.push(cancel_resolver)
+		this.buildResolves.push(cancelable_resolver)
 		this.buildPromises.push(promise)
-		this.buildResolves.push(resolve)
 		this.resourceImports.push(new Map<string, ImportEntity[]>())
 		// @ts-ignore: hey! that's illegal, IN AMERICA! - bandit kieth
 		this.buildNumber++
 	}
 
-	pushImports(importer_key: string, imports: ImportEntity[]) {
+	public incrementFilesCounter(pathname?: string): void {
+		// cancel any prior resolve that may have been triggered.
+		this.buildResolveCancels[this.buildNumber]()
+		// this.buildResolveCancels.at(-1)!() // TODO: using `at(-1)` is not very nice. you should abstract away a given "build".
+		++this.remainingFilesCounter
+		console.log("increment for:", pathname, this.remainingFilesCounter)
+	}
+
+	public decrementFilesCounter(pathname?: string): void {
+		// cancel any prior resolve that may have been triggered.
+		this.buildResolveCancels[this.buildNumber]()
+		// this.buildResolveCancels.at(-1)!() // TODO: using `at(-1)` is not very nice. you should abstract away a given "build".
+		--this.remainingFilesCounter
+		console.log("decrement for:", pathname, this.remainingFilesCounter)
+	}
+
+	public cacheResolvedResult(args?: OnResolveResult | undefined | null) {
+		if (!args?.path) { return }
+		const
+			path = pathToPosixPath(args.path!),
+			namespace = args.namespace ?? "file",
+			key = namespace + ":" + path
+		// if the resolved path has already been encountered once, then esbuild will have it cached, and so, no loader hooks will be called,
+		// therefore we must immediately decrement the files counter, since the loader can't do it any longer.
+		if (this.encounteredPaths.has(key)) {
+			this.decrementFilesCounter(args.path)
+			console.log("already encountered:", key)
+		}
+		else {
+			this.encounteredPaths.add(key)
+			console.log("did not encounter:", key)
+		}
+	}
+
+	public pushImports(importer_key: string, imports: ImportEntity[]) {
 		this.resourceImports[this.buildNumber].set(importer_key, imports)
 	}
 
@@ -84,7 +145,7 @@ export class LongBuildPluginController {
 	 * > the file's contents are in typescript rather than javascript.
 	 * > so make sure to use the `"ts"` esbuild loader for it.
 	*/
-	prepareLongBuildFileContent(build_number: number): string {
+	public prepareLongBuildFileContent(build_number: number): string {
 		const all_imports_this_build = [...this.resourceImports[build_number].entries()]
 		const all_imports_js_str = all_imports_this_build.map(([importer_key, imports_arr]) => {
 			const imports_str_arr = imports_arr.map((import_entity) => {
@@ -133,7 +194,7 @@ ${recursion_import_statement}
 	 * this method has to be made asynchronous.
 	 * I'm certainly not going to be using `eval` or the `Function` constructor, because they are often restricted in some js-environments.
 	*/
-	async parseLongBuildFileContent(): Promise<Map<string, ImportEntity[]>> {
+	public async parseLongBuildFileContent(): Promise<Map<string, ImportEntity[]>> {
 		// TODO: implement.
 		return new Map()
 	}
@@ -156,21 +217,19 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 		plugin_namespace = `oazmi-superbuild-long_build-plugin-${controller.uuid}`
 
 	return (build: EsbuildPluginBuild) => {
+		const filter = RegExp(escapeLiteralStringForRegex(longbuild_base_filename) + "$")
+
 		build.onResolve({ filter: /.*/ }, (args: OnResolveArgs) => {
-			if (!args.path.endsWith(longbuild_base_filename)) {
-				// increment the `remainingFilesCounter` for each file that enters, in order to known when to halt.
-				controller.remainingFilesCounter++
-				return undefined
-			}
-			// the "long build" js files themselves do not get included in the `remainingFilesCounter`.
+			// TODO: I believe `<stdin>` does not go through any `onResolve`, and jumps straight to `onLoad`. so, we must account for not decrementing the counter when it is `<stdin>`.
+			controller.incrementFilesCounter(args.path)
+			if (!args.path.endsWith(longbuild_base_filename)) { return undefined }
 			const filename = parseFilepathInfo(args.path).filename // this is to strip away any directory prefixes.
 			return { path: filename, namespace: plugin_namespace }
 		})
 
-		build.onLoad({
-			filter: RegExp(escapeLiteralStringForRegex(longbuild_base_filename) + "$"),
-			namespace: plugin_namespace,
-		}, async (args: OnLoadArgs) => {
+		build.onLoad({ filter, namespace: plugin_namespace }, async (args: OnLoadArgs) => {
+			// the "long build" js files need to temporarily remove themselves from the `remainingFilesCounter` circulation, otherwise it will never drop to zero
+			controller.decrementFilesCounter(args.path)
 			const
 				filename = args.path,
 				build_number = Number(filename.slice(0, -longbuild_base_filename.length))
@@ -178,7 +237,9 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 			await controller.buildPromises[build_number]
 			const contents = controller.prepareLongBuildFileContent(build_number)
 			controller.incrementBuild()
-			return { contents, loader: "ts" }
+			// we increment the `remainingFilesCounter` because returning from this function will cause it to drop to `-1` if we don't increment.
+			++controller.remainingFilesCounter
+			return { contents, loader: "ts", resolveDir: "./" }
 		})
 	}
 }

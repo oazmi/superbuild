@@ -132,10 +132,34 @@ export interface OnTransformHandler {
 }
 
 export interface ImportEntity<K = any> {
+	/** include a unique key that you can use to trace back the imported entity,
+	 * because the `path` of the import in the bundled output will differ, whereas this key will remain the same.
+	*/
 	key: K
+
+	/** the **absolute/resolved** path of the resource.
+	 *
+	 * do not insert unresolved or relative paths!
+	 * this is a strict design choice because you should ideally run a sub-build to acquire the resolved paths of your dependencies.
+	 * of course, nothing is stopping your `onTransform` hook from either:
+	 * - using the `build.resolve` of the sub-build's parent `PluginBuild` (thereby not requiring re-instantiation of the plugins).
+	 * - re-instantiating the plugins in the sub-build, so that the path-resolution logic remains similar. although, this can have drawbacks;
+	 *   for instance, my `esbuild-plugin-deno`'s `setup` method is _generated_ based on the user's initial config
+	 *   (containing contextual information, such as the location of `deno.json`), which may not be desired in the sub-build
+	 *   (if for instance, the thing being resolved for the sub-build is actually inside a different package/scope than the primary package).
+	 *
+	 * because there is a variablility in how you can potentially approach path resolution,
+	 * we leave it up to the plugin designer to decide how they would want to resolve the paths in their `onTransform` hook's returned imports,
+	 * rather than performing a default action ourselves.
+	*/
 	path: string
-	with: Record<string, string>
+
+	/** associate a `with` import attribute to the import. */
+	with?: Record<string, string>
+
 	// will I need the information below?
-	// kind: EsbuildOutputsImportKind
+	// namespace?: string // specify a namespace for the loader to be used.
+	// pluginData?: any // specify any custom plugin data that should be used.
+	// kind: EsbuildOutputsImportKind // for now, it can only be a regular js dynamic import, since that is what the long-build performs.
 	// external?: boolean
 }
