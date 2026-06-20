@@ -5,9 +5,9 @@
 
 import { isArray, parseFilepathInfo } from "../deps.ts"
 import type { EsbuildBuildOptions } from "../esbuild/strongtypes.ts"
-import { longBuildPlugin, LongBuildPluginController } from "../plugin/long_build.ts"
-import { nativeLoaderPlugin } from "../plugin/native_replica.ts"
-import type { OnTransformHandler } from "../typedefs.ts"
+import { longBuildPlugin, LongBuildPluginController } from "../plugins/long_build.ts"
+import { nativeReplicaPlugin } from "../plugin/native_replica.ts"
+import type { OnTransformHandler } from "./typedefs.ts"
 import { SuperPlugin } from "./plugin.ts"
 
 
@@ -31,7 +31,7 @@ export class SuperBuildContext {
 		options.plugins ??= []
 		// insert the "native loader" at the last, so that esbuild never gets to load natively
 		// (which would bypass our `onLoad` overload, making all `onTransform` hooks unreachable).
-		options.plugins.push(nativeLoaderPlugin())
+		options.plugins.push(nativeReplicaPlugin())
 		// insert a longbuild plugin at the very beginning so that it can intercept all incoming files.
 		const controller = this.longBuildController
 		options.plugins.unshift(longBuildPlugin({ controller }))

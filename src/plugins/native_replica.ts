@@ -15,7 +15,7 @@ import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs 
  * > [!note]
  * > you will probably want to place this as the last plugin, if you don't want it interfering with your other plugins' loading mechanism.
 */
-export const nativeLoaderPluginSetup = (): EsbuildPluginSetup => {
+export const nativeReplicaPluginSetup = (): EsbuildPluginSetup => {
 	return (build: EsbuildPluginBuild) => {
 		const
 			user_ext_to_loader_map = build.initialOptions.loader ?? {},
@@ -42,10 +42,10 @@ export const nativeLoaderPluginSetup = (): EsbuildPluginSetup => {
 	}
 }
 
-/** {@inheritDoc nativeLoaderPluginSetup} */
-export const nativeLoaderPlugin = (): EsbuildPlugin => {
+/** {@inheritDoc nativeReplicaPluginSetup} */
+export const nativeReplicaPlugin = (): EsbuildPlugin => {
 	return {
 		name: "oazmi-superbuild-native_loader-plugin",
-		setup: nativeLoaderPluginSetup(),
+		setup: nativeReplicaPluginSetup(),
 	}
 }
