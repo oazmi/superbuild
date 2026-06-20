@@ -3,8 +3,8 @@
  * @module
 */
 
-export { SuperBuild } from "./super/build.ts"
-export { SuperBuildContext } from "./super/build_context.ts"
-export { SuperPlugin, type SuperPluginSetup } from "./super/plugin.ts"
-export { SuperPluginBuild } from "./super/plugin_build.ts"
+export { SuperBuild } from "./build.ts"
+export { SuperBuildContext } from "./build_context.ts"
+export { SuperPlugin, type SuperPluginSetup } from "./plugin.ts"
+export { SuperPluginBuild } from "./plugin_build.ts"
 

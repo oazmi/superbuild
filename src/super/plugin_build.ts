@@ -19,9 +19,9 @@ import type {
 	OnResolveOptions,
 } from "../esbuild/strongtypes.ts"
 import { concatArrays } from "../funcdefs.ts"
-import type { OnTransformCallback, OnTransformOptions } from "../typedefs.ts"
 import { SuperBuild } from "./build.ts"
 import type { SuperBuildContext } from "./build_context.ts"
+import type { OnTransformCallback, OnTransformOptions } from "./typedefs.ts"
 
 
 export class SuperPluginBuild implements EsbuildPluginBuild {

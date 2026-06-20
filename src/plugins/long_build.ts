@@ -10,8 +10,8 @@
 import { array_isEmpty, escapeLiteralStringForRegex, json_stringify, parseFilepathInfo, pathToPosixPath, promiseOutside } from "../deps.ts"
 import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs, OnResolveArgs, OnResolveResult } from "../esbuild/strongtypes.ts"
 import { cancelableDelayedPromiseResolver } from "../funcdefs.ts"
-import type { ImportEntity } from "../typedefs.ts"
-import type { SuperPluginBuild } from "../wrapper.ts"
+import type { SuperPluginBuild } from "../super/mod.ts"
+import type { ImportEntity } from "../super/typedefs.ts"
 
 
 const enum LONGBUILD {
