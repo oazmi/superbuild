@@ -1,4 +1,4 @@
-/** super-build lets you overload esbuild to expand what you're capable of doing in the plugin-api.
+/** the {@link SuperPluginBuild} class extends `esbuild.PluginBuild` to introduce additional functionality to esbuild's plugin api.
  *
  * @module
 */
@@ -24,6 +24,7 @@ import type { SuperBuildContext } from "./build_context.ts"
 import type { OnTransformCallback, OnTransformOptions } from "./typedefs.ts"
 
 
+/** this is the extension of `esbuild.PluginBuild` that introduces additional functionality to esbuild's plugin api. */
 export class SuperPluginBuild implements EsbuildPluginBuild {
 	protected ctx: SuperBuildContext
 	protected basePluginBuild: EsbuildPluginBuild
@@ -137,6 +138,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 		return this.basePluginBuild.onDispose(callback)
 	}
 
+	/** TODO: add documentation and usage examples. */
 	public onTransform(options: OnTransformOptions, callback: OnTransformCallback): void {
 		const { filter, namespace, loader } = options
 		this.ctx.onTransformHandlers.push({ pluginName: this.pluginName, filter, namespace, loader, callback })

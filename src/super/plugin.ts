@@ -1,4 +1,5 @@
-/** super-build lets you overload esbuild to expand what you're capable of doing in the plugin-api.
+/** the {@link SuperPlugin} class wraps over your regular esbuild plugins to swap the `build: esbuild.PluginBuild` object that esbuild passes,
+ * with a {@link SuperPluginBuild}, super-build lets you overload esbuild to expand what you're capable of doing in the plugin-api.
  *
  * @module
 */
@@ -9,8 +10,14 @@ import type { SuperBuildContext } from "./build_context.ts"
 import { SuperPluginBuild } from "./plugin_build.ts"
 
 
+/** convenient type for annotating your plugin setup functions that use super-build's extended plugin api. */
 export type SuperPluginSetup = (build: SuperPluginBuild) => MaybePromise<void>
 
+/** this class wraps over a base `esbuild.Plugin` to swap out the `build: esbuild.PluginBuild` that gets passed to its `setup` function with a {@link SuperPluginBuild},
+ * so that the plugin get access to all the exclusive features.
+ *
+ * expand your horizons by enrolling into jujutsu-highschool this summer and learning a new domain expansion technique; only for $15,000!
+*/
 export class SuperPlugin implements EsbuildPlugin {
 	// unfortunately, esbuild disallows any enumerable custom property to be set on the plugin `Object`.
 	// hence, we declare all custom properties as private, so that esbuild does not discover them.
