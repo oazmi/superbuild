@@ -12,6 +12,12 @@ import type {
 import { SuperBuildContext } from "./build_context.ts"
 
 
+/** super-build lets you overload esbuild to expand what you're capable of doing in the plugin-api.
+ *
+ * this class creates a mere wrapper over a base `esbuild` object (acquired from `import esbuild from "npm:esbuild"`).
+ * this class itself does not do anything interesting aside from overloading the `esbuild.build` and `esbuild.buildSync` methods,
+ * to pass a modified version of your `esbuild.BuildOptions` that alters the plugin api (which is performed by {@link SuperBuildContext}).
+*/
 export class SuperBuild implements Esbuild {
 	declare public version: Esbuild["version"]
 	declare public analyzeMetafile: Esbuild["analyzeMetafile"]

@@ -27,6 +27,7 @@ const enum LONGBUILD {
 	ONLOAD_MIN_DELAY = 500
 }
 
+/** the controller used for commanding the state of the "long build" plugin. */
 export class LongBuildPluginController {
 	/** the unique base filename that will be used by the {@link longBuildPluginSetup} plugin to insert its "long build" js file as an entry-point.
 	 * the full filename format it will use will be: `${recursion_number}.(${uuid}).js`.
