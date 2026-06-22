@@ -19,9 +19,11 @@ import type {
 	OnResolveOptions,
 } from "../esbuild/strongtypes.ts"
 import { concatArrays } from "../funcdefs.ts"
+import type { EsbuildNativeResolver, nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import { SuperBuild } from "./build.ts"
 import type { SuperBuildContext } from "./build_context.ts"
 import type { OnTransformCallback, OnTransformOptions } from "./typedefs.ts"
+import { INNER_PLUGIN_BUILD } from "./typedefs.ts"
 
 
 /** this is the extension of `esbuild.PluginBuild` that introduces additional functionality to esbuild's plugin api. */
@@ -32,6 +34,14 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 	public initialOptions: EsbuildBuildOptions
 	public readonly esbuild: SuperBuild
 
+	/** a reference to the original {@link EsbuildPluginBuild} that was used to construct this class.
+	 *
+	 * its presence can be used to check whether or not your plugin is running inside a super-build.
+	 * gaining access to esbuild's original `PluginBuild` can be useful in certain situations where bypassing super-build is necessary,
+	 * such as in the case of the {@link nativeReplicaPlugin}, and the underlying {@link EsbuildNativeResolver} that it uses.
+	*/
+	public readonly [INNER_PLUGIN_BUILD]: EsbuildPluginBuild
+
 	constructor(ctx: SuperBuildContext, base_plugin_build: EsbuildPluginBuild, plugin_name: string) {
 		this.ctx = ctx
 		this.basePluginBuild = base_plugin_build
@@ -41,6 +51,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 		// TODO: we might want to add a "parent" field to `SuperBuild`, so that it can communicate with the parent super-build,
 		// and also `resolve()` with respect to the parent's plugins and `pluginData` context.
 		this.esbuild = new SuperBuild(base_plugin_build.esbuild)
+		this[INNER_PLUGIN_BUILD] = base_plugin_build
 	}
 
 	public resolve(path: string, options?: EsbuildResolveOptions): Promise<EsbuildResolveResult> {
@@ -125,9 +136,6 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 			// every loaded result indicates that a file has gone out of circulation,
 			// and hence we must decrement the `remainingFilesCounter` of the long-build plugin.
 			long_build_controller.decrementFilesCounter(args.path)
-			if (long_build_controller.remainingFilesCounter <= 0) {
-				long_build_controller.buildResolves[long_build_controller.buildNumber]()
-			}
 			return result
 		}
 

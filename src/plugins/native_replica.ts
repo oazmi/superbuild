@@ -11,6 +11,8 @@
 import { escapeLiteralStringForRegex, fileUrlToLocalPath, json_stringify, promiseOutside, resolveAsUrl } from "../deps.ts"
 import { guessExtensionLoader_Factory } from "../esbuild/native.ts"
 import type { EsbuildBuildOptions, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, EsbuildResolveOptions, EsbuildResolveResult, OnLoadArgs, OnResolveArgs } from "../esbuild/strongtypes.ts"
+import { INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
+import type { SuperPluginBuild } from "../super/plugin_build.ts"
 
 
 /** this plugin replicates esbuild's native path resolution and loading behavior through the plugin api layer.
@@ -28,11 +30,15 @@ import type { EsbuildBuildOptions, EsbuildPlugin, EsbuildPluginBuild, EsbuildPlu
  * > _Luke_: Even if you refuse to acknowledge me, I am ME! Master... no, Van! Prepare to DIE!
 */
 export const nativeReplicaPluginSetup = (): EsbuildPluginSetup => {
-	return async (build: EsbuildPluginBuild) => {
+	return async (build: EsbuildPluginBuild | SuperPluginBuild) => {
 		const
 			user_ext_to_loader_map = build.initialOptions.loader ?? {},
 			guess_extension_loader = guessExtensionLoader_Factory(user_ext_to_loader_map),
-			native_resolver = new EsbuildNativeResolver(build.esbuild, build.initialOptions)
+			// if super-build is being used, we must extract the original hidden `esbuild` from it, otherwise the native-resolver won't work.
+			base_esbuild = INNER_PLUGIN_BUILD in build
+				? build[INNER_PLUGIN_BUILD].esbuild
+				: build.esbuild,
+			native_resolver = new EsbuildNativeResolver(base_esbuild, build.initialOptions)
 
 		build.onEnd(() => native_resolver.stop()) // stop the sub-build from hanging once the main build has concluded.
 

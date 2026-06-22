@@ -108,10 +108,13 @@ export class LongBuildPluginController {
 	}
 
 	public decrementFilesCounter(pathname?: string): void {
-		// cancel any prior resolve that may have been triggered.
+		// cancel any prior resolve that may have been triggered,
+		// so that we always ensure that the desired amount of time has been waited with absolutely no resource processing in between.
 		this.buildResolveCancels[this.buildNumber]()
 		// this.buildResolveCancels.at(-1)!() // TODO: using `at(-1)` is not very nice. you should abstract away a given "build".
-		--this.remainingFilesCounter
+		if ((--this.remainingFilesCounter) <= 0) {
+			this.buildResolves[this.buildNumber]()
+		}
 		console.log("decrement for:", pathname, this.remainingFilesCounter)
 	}
 
