@@ -9,7 +9,7 @@
 import { isArray, parseFilepathInfo } from "../deps.ts"
 import type { EsbuildBuildOptions } from "../esbuild/strongtypes.ts"
 import { longBuildPlugin, LongBuildPluginController } from "../plugins/long_build.ts"
-import { nativeReplicaPlugin } from "../plugin/native_replica.ts"
+import { nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import type { OnTransformHandler, OnTransformResult } from "./typedefs.ts"
 import { SuperPlugin } from "./plugin.ts"
 
