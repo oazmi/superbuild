@@ -10,7 +10,7 @@
 
 import { escapeLiteralStringForRegex, fileUrlToLocalPath, json_stringify, promiseOutside, resolveAsUrl } from "../deps.ts"
 import { guessExtensionLoader_Factory } from "../esbuild/native.ts"
-import type { EsbuildBuildOptions, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs, OnResolveArgs } from "../esbuild/strongtypes.ts"
+import type { EsbuildBuildOptions, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, EsbuildResolveOptions, EsbuildResolveResult, OnLoadArgs, OnResolveArgs } from "../esbuild/strongtypes.ts"
 
 
 /** this plugin replicates esbuild's native path resolution and loading behavior through the plugin api layer.
@@ -32,13 +32,13 @@ export const nativeReplicaPluginSetup = (): EsbuildPluginSetup => {
 		const
 			user_ext_to_loader_map = build.initialOptions.loader ?? {},
 			guess_extension_loader = guessExtensionLoader_Factory(user_ext_to_loader_map),
-			{ resolve, stop } = await esbuildNativeResolverFactory(build.esbuild, build.initialOptions)
+			native_resolver = new EsbuildNativeResolver(build.esbuild, build.initialOptions)
 
-		build.onEnd(stop) // stop the sub-build from hanging once the main build has concluded.
+		build.onEnd(() => native_resolver.stop()) // stop the sub-build from hanging once the main build has concluded.
 
 		build.onResolve({ filter: /.*/ }, (args: OnResolveArgs) => {
 			const { path, ...rest_args } = args
-			return resolve(args.path, rest_args)
+			return native_resolver.resolve(args.path, rest_args)
 		})
 
 		build.onLoad({ filter: /.*/, namespace: "file" }, async (args: OnLoadArgs) => {
@@ -80,64 +80,81 @@ type EsbuildNativeResolverBuildOptions = Pick<
 	| "resolveExtensions" | "tsconfig" | "tsconfigRaw"
 >
 
-type EsbuildNativeResolver = {
-	resolve: EsbuildPluginBuild["resolve"],
-	stop: () => Promise<void>,
-}
-
-/** this function creates a `resolve` function that is capable of resolving paths using esbuild's node-resolution scanner.
+/** this class provides {@link resolve} method that is capable of resolving paths using esbuild's node-resolution scanner.
  *
- * it works by invoking esbuild's `PluginBuild.resolve` function whenever the returned `resolve` method is called,
- * and it holds an `onLoad` hook hostage by hanging forever, so that the build does not conclude until the returned `stop` method is called.
+ * it works by invoking esbuild's `PluginBuild.resolve` function whenever the {@link resolve} method is called,
+ * and it holds an `onLoad` hook hostage by hanging forever,
+ * so that the internal sub-build does not conclude until the {@link stop} method has been called.
 */
-const esbuildNativeResolverFactory = async (
-	base_esbuild: EsbuildPluginBuild["esbuild"],
-	build_options: EsbuildBuildOptions,
-): Promise<EsbuildNativeResolver> => {
-	let resolver_fn: EsbuildPluginBuild["resolve"]
-	const
-		[stop_session_promise, stop_session_resolve] = promiseOutside<void>(),
-		[start_session_promise, start_session_resolve] = promiseOutside<void>(),
-		namespace = "the-void",
-		entrypoint = "<the-unloadable-void>",
-		entrypoint_regex = RegExp(escapeLiteralStringForRegex(entrypoint) + "$"),
-		{
+export class EsbuildNativeResolver {
+	protected entryPoint = "<the-unloadable-void>"
+	protected namespace = "the-void"
+	protected readonly startBuildPromise: Promise<void>
+	protected readonly startBuildResolve: (() => void)
+	protected readonly stopBuildPromise: Promise<void>
+	protected readonly stopBuildResolve: (() => void)
+
+	#internal_resolve!: EsbuildPluginBuild["resolve"]
+	#build_result!: ReturnType<EsbuildPluginBuild["esbuild"]["build"]>
+
+	constructor(base_esbuild: EsbuildPluginBuild["esbuild"], build_options?: EsbuildBuildOptions) {
+		[this.startBuildPromise, this.startBuildResolve] = promiseOutside<void>();
+		[this.stopBuildPromise, this.stopBuildResolve] = promiseOutside<void>()
+		build_options = this.initOptions(build_options)
+		build_options.plugins = [this.initPlugin()]
+		this.#build_result = base_esbuild.build(build_options)
+	}
+
+	public async resolve(path: string, options?: EsbuildResolveOptions): Promise<EsbuildResolveResult> {
+		await this.startBuildPromise
+		return this.#internal_resolve(path, options)
+	}
+
+	public async stop(): Promise<void> {
+		this.stopBuildResolve()
+		await this.#build_result
+	}
+
+	protected initOptions(build_options: EsbuildBuildOptions = {}): EsbuildBuildOptions {
+		const {
 			absWorkingDir, alias, conditions, external,
 			mainFields, nodePaths, packages, platform,
 			resolveExtensions, tsconfig, tsconfigRaw,
 		}: EsbuildNativeResolverBuildOptions = build_options
-	const setup_fn = (build: EsbuildPluginBuild) => {
-		build.onResolve({ filter: entrypoint_regex }, async (args) => {
-			return { path: entrypoint, namespace }
-		})
-
-		build.onLoad({ filter: entrypoint_regex, namespace }, async (args) => {
-			start_session_resolve()
-			resolver_fn = (path, args) => {
-				return build.resolve(path, { kind: "entry-point", resolveDir: "./", ...args })
-			}
-			await stop_session_promise
-			return { contents: "", loader: "empty" }
-		})
+		const entrypoint = this.entryPoint
+		return {
+			absWorkingDir, alias, conditions, external,
+			mainFields, nodePaths, packages, platform,
+			resolveExtensions, tsconfig, tsconfigRaw,
+			bundle: false, minify: false, write: false,
+			outdir: "./temp/", entryPoints: [entrypoint],
+		}
 	}
 
-	const build_result = base_esbuild.build({
-		absWorkingDir, alias, conditions, external,
-		mainFields, nodePaths, packages, platform,
-		resolveExtensions, tsconfig, tsconfigRaw,
-		bundle: false, minify: false, write: false,
-		outdir: "./temp/", entryPoints: [entrypoint],
-		plugins: [{
+	protected initPlugin(): EsbuildPlugin {
+		const self = this
+		const setup_fn = (build: EsbuildPluginBuild) => {
+			const
+				entrypoint = self.entryPoint,
+				filter = RegExp(escapeLiteralStringForRegex(entrypoint) + "$"),
+				namespace = self.namespace
+			build.onResolve({ filter }, async (args) => {
+				return { path: entrypoint, namespace }
+			})
+
+			build.onLoad({ filter, namespace }, async (args) => {
+				self.startBuildResolve()
+				self.#internal_resolve = (path, args) => {
+					return build.resolve(path, { kind: "entry-point", resolveDir: "./", ...args })
+				}
+				await self.stopBuildPromise
+				return { contents: "", loader: "empty" }
+			})
+		}
+
+		return {
 			name: "native-esbuild-resolver-capture",
 			setup: setup_fn,
-		}],
-	})
-	const stop_fn = async (): Promise<void> => {
-		stop_session_resolve()
-		await build_result
-		return
+		}
 	}
-
-	await start_session_promise
-	return { resolve: resolver_fn!, stop: stop_fn }
 }
