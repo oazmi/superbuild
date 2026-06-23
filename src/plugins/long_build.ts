@@ -28,7 +28,7 @@ const enum LONGBUILD {
 }
 
 /** the controller used for commanding the state of the "long build" plugin. */
-export class LongBuildPluginController {
+export class LongBuildController {
 	/** the unique base filename that will be used by the {@link longBuildPluginSetup} plugin to insert its "long build" js file as an entry-point.
 	 * the full filename format it will use will be: `${recursion_number}.(${uuid}).js`.
 	*/
@@ -68,13 +68,7 @@ export class LongBuildPluginController {
 	*/
 	protected encounteredPaths: Set<string> = new Set()
 
-	public readonly buildPromises: Array<Promise<void>> = []
-
-	public readonly buildResolves: Array<() => void> = []
-
-	public readonly buildResolveCancels: Array<() => void> = []
-
-	public readonly resourceImports: Array<Map<string, ImportEntity[]>> = []
+	public steps: Array<LongBuildStep> = []
 
 	constructor() {
 		// TODO: `crypto.randomUUID` is not available in `http` connections. so I might want to polyfill it in the future.
@@ -87,21 +81,17 @@ export class LongBuildPluginController {
 	}
 
 	public incrementBuild() {
-		const
-			[promise, resolve, reject] = promiseOutside<void>(),
-			[cancelable_resolver, cancel_resolver] = cancelableDelayedPromiseResolver(resolve, LONGBUILD.ONLOAD_MIN_DELAY)
 		this.remainingFilesCounter = 0
-		this.buildResolveCancels.push(cancel_resolver)
-		this.buildResolves.push(cancelable_resolver)
-		this.buildPromises.push(promise)
-		this.resourceImports.push(new Map<string, ImportEntity[]>())
-		// @ts-ignore: hey! that's illegal, IN AMERICA! - bandit kieth
-		this.buildNumber++
+		type CitizenshipTest = number
+
+		// hey! incrementing a readonly number is illegal, IN AMERICA! - bandit kieth.
+		// (unless they pass the citizenship test)
+		this.steps.push(new LongBuildStep(this, ++(this.buildNumber satisfies CitizenshipTest)))
 	}
 
 	public incrementFilesCounter(pathname?: string): void {
 		// cancel any prior resolve that may have been triggered.
-		this.buildResolveCancels[this.buildNumber]()
+		this.steps[this.buildNumber].cancelResolve()
 		// this.buildResolveCancels.at(-1)!() // TODO: using `at(-1)` is not very nice. you should abstract away a given "build".
 		++this.remainingFilesCounter
 		console.log("increment for:", pathname, this.remainingFilesCounter)
@@ -110,10 +100,10 @@ export class LongBuildPluginController {
 	public decrementFilesCounter(pathname?: string): void {
 		// cancel any prior resolve that may have been triggered,
 		// so that we always ensure that the desired amount of time has been waited with absolutely no resource processing in between.
-		this.buildResolveCancels[this.buildNumber]()
+		this.steps[this.buildNumber].cancelResolve()
 		// this.buildResolveCancels.at(-1)!() // TODO: using `at(-1)` is not very nice. you should abstract away a given "build".
 		if ((--this.remainingFilesCounter) <= 0) {
-			this.buildResolves[this.buildNumber]()
+			this.steps[this.buildNumber].signalresolve()
 		}
 		console.log("decrement for:", pathname, this.remainingFilesCounter)
 	}
@@ -136,21 +126,59 @@ export class LongBuildPluginController {
 		}
 	}
 
-	public pushImports(importer_key: string, imports: ImportEntity[]) {
-		this.resourceImports[this.buildNumber].set(importer_key, imports)
+	/** this function does the inverse of {@link prepareLongBuildFileContent};
+	 * it parses the js-transpiled contents of the "long build" file and extracts/reconstructs the resource import `Map` from it.
+	 *
+	 * since I plan on using a dynamic script `import()` to execute the contents of a modified version of the "long build" file content,
+	 * this method has to be made asynchronous.
+	 * I'm certainly not going to be using `eval` or the `Function` constructor, because they are often restricted in some js-environments.
+	*/
+	public async parseLongBuildFileContent(): Promise<Map<string, ImportEntity[]>> {
+		// TODO: implement.
+		return new Map()
+	}
+}
+
+export class LongBuildStep {
+	/** the build number of this build step, starting with zero. */
+	public readonly buildNumber: number
+
+	/** the unique filename of this "long build step" js file.
+	 * it is a computed value that evaluates to `${buildNumber}.(${uuid}).js`.
+	*/
+	public readonly filename: string
+
+	public readonly promise: Promise<void>
+
+	public readonly signalresolve: (() => void)
+
+	public readonly cancelResolve: (() => void)
+
+	public readonly resourceImports: Map<string, ImportEntity[]> = new Map()
+
+	constructor(parent_controller: LongBuildController, build_number: number) {
+		this.buildNumber = build_number
+		this.filename = `${build_number}${parent_controller.baseFilename}`
+		const [promise, resolve, reject] = promiseOutside<void>();
+		[this.signalresolve, this.cancelResolve] = cancelableDelayedPromiseResolver(resolve, LONGBUILD.ONLOAD_MIN_DELAY)
+		this.promise = promise
 	}
 
-	/** prepares the file contents of the "long build" of the given `build_number`.
+	public pushImports(importer_key: string, imports: ImportEntity[]) {
+		this.resourceImports.set(importer_key, imports)
+	}
+
+	/** prepares the file contents of the "long build" of this "long build step".
 	 *
-	 * you would use this once you have deduced that all files that were in circulation in the current build have exited,
+	 * you would use this once you have deduced that all files that were in circulation during this build step have exited,
 	 * and therefore your long build plugin must also halt by loading the contents prepared here by this method.
 	 *
 	 * > [!caution]
 	 * > the file's contents are in typescript rather than javascript.
 	 * > so make sure to use the `"ts"` esbuild loader for it.
 	*/
-	public prepareLongBuildFileContent(build_number: number): string {
-		const all_imports_this_build = [...this.resourceImports[build_number].entries()]
+	public prepareLongBuildFileContent(): string {
+		const all_imports_this_build = [...this.resourceImports.entries()]
 		const all_imports_js_str = all_imports_this_build.map(([importer_key, imports_arr]) => {
 			const imports_str_arr = imports_arr.map((import_entity) => {
 				const
@@ -170,10 +198,10 @@ resourceImports.set(${importer_key_str}, [\n\t${imports_str}\n])
 		})
 
 		const recursion_import_statement = !array_isEmpty(all_imports_this_build)
-			? `import "${build_number}${this.baseFilename}" // recursion to the next long-build.`
+			? `import "${this.filename}" // recursion to the next long-build.`
 			: "// no imports were pushed this build-number. hence, this is the final long-build file."
 		return `
-console.log("long build: ${build_number}")
+console.log("long build: ${this.buildNumber}")
 
 interface ImportEntity<K = any> {
 	key: K
@@ -190,22 +218,10 @@ ${all_imports_js_str}
 ${recursion_import_statement}
 		`.trim()
 	}
-
-	/** this function does the inverse of {@link prepareLongBuildFileContent};
-	 * it parses the js-transpiled contents of the "long build" file and extracts/reconstructs the resource import `Map` from it.
-	 *
-	 * since I plan on using a dynamic script `import()` to execute the contents of a modified version of the "long build" file content,
-	 * this method has to be made asynchronous.
-	 * I'm certainly not going to be using `eval` or the `Function` constructor, because they are often restricted in some js-environments.
-	*/
-	public async parseLongBuildFileContent(): Promise<Map<string, ImportEntity[]>> {
-		// TODO: implement.
-		return new Map()
-	}
 }
 
 export interface LongBuildPluginSetupConfig {
-	controller: LongBuildPluginController
+	controller: LongBuildController
 }
 
 /** this plugin captures **all** file-namespace imports, and mimics esbuild's native file-loading by using `fetch`,
@@ -236,10 +252,11 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 			controller.decrementFilesCounter(args.path)
 			const
 				filename = args.path,
-				build_number = Number(filename.slice(0, -longbuild_base_filename.length))
+				build_number = Number(filename.slice(0, -longbuild_base_filename.length)),
+				build_step = controller.steps[build_number]
 			// wait for super-build to externally resolve the promise below to signal that the `remainingFilesCounter` has dropped to zero.
-			await controller.buildPromises[build_number]
-			const contents = controller.prepareLongBuildFileContent(build_number)
+			await build_step.promise
+			const contents = build_step.prepareLongBuildFileContent()
 			controller.incrementBuild()
 			// we increment the `remainingFilesCounter` because returning from this function will cause it to drop to `-1` if we don't increment.
 			++controller.remainingFilesCounter

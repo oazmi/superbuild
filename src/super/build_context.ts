@@ -8,10 +8,10 @@
 
 import { isArray, parseFilepathInfo } from "../deps.ts"
 import type { EsbuildBuildOptions } from "../esbuild/strongtypes.ts"
-import { longBuildPlugin, LongBuildPluginController } from "../plugins/long_build.ts"
+import { LongBuildController, longBuildPlugin } from "../plugins/long_build.ts"
 import { nativeReplicaPlugin } from "../plugins/native_replica.ts"
-import type { OnTransformHandler, OnTransformResult } from "./typedefs.ts"
 import { SuperPlugin } from "./plugin.ts"
+import type { OnTransformHandler, OnTransformResult } from "./typedefs.ts"
 
 
 /** a centralized context is created for each individual {@link SuperBuild.build} call. */
@@ -22,10 +22,10 @@ export class SuperBuildContext {
 	public onTransformHandlers: OnTransformHandler[] = []
 
 	/** the controller used for commanding the state of the "long build" plugin. */
-	public longBuildController: LongBuildPluginController
+	public longBuildController: LongBuildController
 
 	constructor() {
-		this.longBuildController = new LongBuildPluginController()
+		this.longBuildController = new LongBuildController()
 	}
 
 	/** this method wraps a {@link SuperPlugin} on top of each of the user's base plugin,
@@ -51,8 +51,9 @@ export class SuperBuildContext {
 		options.plugins.unshift(longBuildPlugin({ controller }))
 		options.plugins = options.plugins.map((plugin) => (new SuperPlugin(this, plugin)))
 		// we also insert the unique long build entry point to the options.
-		const long_build_filename = `${controller.buildNumber}${controller.baseFilename}`
-		const entryPoints = (options.entryPoints ??= [])
+		const
+			long_build_filename = controller.steps.at(-1)!.filename,
+			entryPoints = (options.entryPoints ??= [])
 		if (isArray(entryPoints)) {
 			entryPoints.push(long_build_filename)
 		} else {
