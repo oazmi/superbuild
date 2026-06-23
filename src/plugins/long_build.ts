@@ -24,7 +24,32 @@ const enum LONGBUILD {
 	 * where you can be certain that esbuild's go-side transpiler/transformer won't take any longer than that to transform a single file in your bundle.
 	 * i.e. the lower bound of this enum value = `max(...all_bundled_files.map((file) => get_transpilation_time(file))`
 	*/
-	ONLOAD_MIN_DELAY = 500
+	ONLOAD_MIN_DELAY = 500,
+
+	/** the name of the resource-imports storage variable used across the "long build step" js files. */
+	RESOURCE_VAR_NAME = "resourceImports",
+
+	/** this will be common dependency file of each "long build step" js file, so that they all share the same `resourceImports` storage variable.
+	 *
+	 * the name of this file will be `deps.(${uuid}).js`, defined in the {@link LongBuildController}.
+	*/
+	DEPS_FILE = `
+export interface ImportEntity<K = any> {
+	key: K
+	path: string
+	with: Record<string, string>
+}
+
+export const ${LONGBUILD.RESOURCE_VAR_NAME}: Map<
+	string,        // the importer's key.
+	ImportEntity[] // all of the entities imported by the importer.
+> = new Map()
+
+// esbuild likes to add a "@__PURE__" annotation to the variable above.
+// hence, to ensure that it never gets stripped away (because we want to dynamically import it later),
+// we perform an action that has a potential for side-effect, preventing esbuild from ever dropping this variable in the bundle.
+${LONGBUILD.RESOURCE_VAR_NAME}.size
+`,
 }
 
 /** the controller used for commanding the state of the "long build" plugin. */
@@ -43,6 +68,13 @@ export class LongBuildController {
 	 * and so on (until a "long build" js file with zero external imports/includes is discovered, at which point we shall halt).
 	*/
 	public readonly baseFilename: string
+
+	/** the name of the "long build dependency" file, as defined in {@link LONGBUILD.DEPS_FILE}.
+	 *
+	 * its value evaluates to `deps.(${uuid}).js`, and it is imported by each "long build step" js file as a dependency,
+	 * in order to have a shared resource variable where all imports will get registered.
+	*/
+	public readonly depsFilename: string
 
 	/** the current build/recursion number. it starts with zero, and it is used for indicating the filename of the current "long build" file. */
 	public readonly buildNumber: number
@@ -75,6 +107,7 @@ export class LongBuildController {
 		const uuid = crypto.randomUUID()
 		this.uuid = uuid
 		this.baseFilename = `.(${uuid}).js`
+		this.depsFilename = `deps.(${uuid}).js`
 		this.remainingFilesCounter = 0
 		this.buildNumber = -1
 		this.incrementBuild()
@@ -156,7 +189,10 @@ export class LongBuildStep {
 
 	public readonly resourceImports: Map<string, ImportEntity[]> = new Map()
 
+	protected readonly controller: LongBuildController
+
 	constructor(parent_controller: LongBuildController, build_number: number) {
+		this.controller = parent_controller
 		this.buildNumber = build_number
 		this.filename = `${build_number}${parent_controller.baseFilename}`
 		const [promise, resolve, reject] = promiseOutside<void>();
@@ -182,40 +218,31 @@ export class LongBuildStep {
 		const all_imports_js_str = all_imports_this_build.map(([importer_key, imports_arr]) => {
 			const imports_str_arr = imports_arr.map((import_entity) => {
 				const
-					{ key, path, with: with_attr } = import_entity,
+					{ key, path, with: with_attr = {} } = import_entity,
 					key_str = json_stringify(key),
 					path_str = json_stringify(path),
 					with_str = json_stringify(with_attr)
-				// TODO: add with attribute support.
 				// return `import(${path_str}, { with: { importer: "" } })`
 				return `{ key: ${key_str}, path: await import(${path_str}), with: ${with_str} }`
 			})
 			const imports_str = imports_str_arr.join(",\n\t")
 			const importer_key_str = json_stringify(importer_key)
-			return `
-resourceImports.set(${importer_key_str}, [\n\t${imports_str}\n])
-			`.trim()
+			return `resourceImports.set(${importer_key_str}, [\n\t${imports_str}\n])`
 		})
 
-		const recursion_import_statement = !array_isEmpty(all_imports_this_build)
-			? `import "${this.filename}" // recursion to the next long-build.`
-			: "// no imports were pushed this build-number. hence, this is the final long-build file."
+		const
+			deps_filename = this.controller.depsFilename,
+			next_filename = `${this.buildNumber + 1}${this.controller.baseFilename}`,
+			recursion_import_statement = !array_isEmpty(all_imports_this_build)
+				? `import "${next_filename}" // recursion to the next long-build.`
+				: "// no imports were pushed this build-number. hence, this is the final long-build file."
+
 		return `
-console.log("long build: ${this.buildNumber}")
-
-interface ImportEntity<K = any> {
-	key: K
-	path: any
-	with: Record<string, string>
-}
-
-export const resourceImports: Map<
-	string,        // the importer's key.
-	ImportEntity[] // all of the entities imported by the importer.
-> = new Map()
-
-${all_imports_js_str}
+import { ${LONGBUILD.RESOURCE_VAR_NAME} } from "${deps_filename}"
 ${recursion_import_statement}
+
+console.log("long build: ${this.buildNumber}")
+${all_imports_js_str}
 		`.trim()
 	}
 }
@@ -234,17 +261,24 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 	const
 		controller = config.controller,
 		longbuild_base_filename = controller.baseFilename,
+		longbuild_deps_filename = controller.depsFilename,
 		plugin_namespace = `oazmi-superbuild-long_build-plugin-${controller.uuid}`
 
 	return (build: EsbuildPluginBuild) => {
-		const filter = RegExp(escapeLiteralStringForRegex(longbuild_base_filename) + "$")
+		const
+			filter = RegExp(escapeLiteralStringForRegex(longbuild_base_filename) + "$"),
+			deps_file_filter = RegExp(escapeLiteralStringForRegex(longbuild_deps_filename) + "$")
 
 		build.onResolve({ filter: /.*/ }, (args: OnResolveArgs) => {
 			// TODO: I believe `<stdin>` does not go through any `onResolve`, and jumps straight to `onLoad`. so, we must account for not decrementing the counter when it is `<stdin>`.
 			controller.incrementFilesCounter(args.path)
 			if (!args.path.endsWith(longbuild_base_filename)) { return undefined }
 			const filename = parseFilepathInfo(args.path).filename // this is to strip away any directory prefixes.
-			return { path: filename, namespace: plugin_namespace }
+			return { path: filename, namespace: plugin_namespace } // TODO: should we set `sideEffects` to true?
+		})
+
+		build.onLoad({ filter: deps_file_filter, namespace: plugin_namespace }, (args: OnLoadArgs) => {
+			return { contents: LONGBUILD.DEPS_FILE as string, loader: "ts" }
 		})
 
 		build.onLoad({ filter, namespace: plugin_namespace }, async (args: OnLoadArgs) => {
