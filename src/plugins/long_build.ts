@@ -8,8 +8,8 @@
 */
 
 import { array_isEmpty, escapeLiteralStringForRegex, json_stringify, parseFilepathInfo, pathToPosixPath, promiseOutside } from "../deps.ts"
-import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs, OnResolveArgs, OnResolveResult } from "../esbuild/strongtypes.ts"
-import { cancelableDelayedPromiseResolver } from "../funcdefs.ts"
+import type { EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs, OnResolveArgs, OnResolveResult } from "../esbuild/strongtypes.ts"
+import { cancelableDelayedPromiseResolver, generateUuid } from "../funcdefs.ts"
 import type { SuperPluginBuild } from "../super/mod.ts"
 import type { ImportEntity } from "../super/typedefs.ts"
 
@@ -103,8 +103,7 @@ export class LongBuildController {
 	public steps: Array<LongBuildStep> = []
 
 	constructor() {
-		// TODO: `crypto.randomUUID` is not available in `http` connections. so I might want to polyfill it in the future.
-		const uuid = crypto.randomUUID()
+		const uuid = generateUuid(2)
 		this.uuid = uuid
 		this.baseFilename = `.(${uuid}).js`
 		this.depsFilename = `deps.(${uuid}).js`
@@ -113,13 +112,21 @@ export class LongBuildController {
 		this.incrementBuild()
 	}
 
-	public incrementBuild() {
-		this.remainingFilesCounter = 0
+	public incrementBuild(): EsbuildPartialMessage[] {
+		const warnings: EsbuildPartialMessage[] = []
+		if (this.remainingFilesCounter !== 0) {
+			warnings.push({
+				text: `[LongBuildController.incrementBuild]: the number of remaining files (${this.remainingFilesCounter}) in circulation during th current long-build (${this.buildNumber}) did not reach zero before the build was incremented!`
+			})
+		}
+		// TODO: should I force reset the remaining files counter to zero for the next build even when the assertion above fails?
+		// this.remainingFilesCounter = 0
 		type CitizenshipTest = number
 
 		// hey! incrementing a readonly number is illegal, IN AMERICA! - bandit kieth.
 		// (unless they pass the citizenship test)
 		this.steps.push(new LongBuildStep(this, ++(this.buildNumber satisfies CitizenshipTest)))
+		return warnings
 	}
 
 	public incrementFilesCounter(pathname?: string): void {
@@ -150,12 +157,12 @@ export class LongBuildController {
 		// if the resolved path has already been encountered once, then esbuild will have it cached, and so, no loader hooks will be called,
 		// therefore we must immediately decrement the files counter, since the loader can't do it any longer.
 		if (this.encounteredPaths.has(key)) {
-			this.decrementFilesCounter(args.path)
 			console.log("already encountered:", key)
+			this.decrementFilesCounter(args.path)
 		}
 		else {
-			this.encounteredPaths.add(key)
 			console.log("did not encounter:", key)
+			this.encounteredPaths.add(key)
 		}
 	}
 
@@ -290,11 +297,12 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 				build_step = controller.steps[build_number]
 			// wait for super-build to externally resolve the promise below to signal that the `remainingFilesCounter` has dropped to zero.
 			await build_step.promise
-			const contents = build_step.prepareLongBuildFileContent()
-			controller.incrementBuild()
+			const
+				contents = build_step.prepareLongBuildFileContent(),
+				warnings = controller.incrementBuild()
 			// we increment the `remainingFilesCounter` because returning from this function will cause it to drop to `-1` if we don't increment.
 			++controller.remainingFilesCounter
-			return { contents, loader: "ts", resolveDir: "./" }
+			return { contents, loader: "ts", resolveDir: "./", warnings }
 		})
 	}
 }
