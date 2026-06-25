@@ -132,7 +132,6 @@ export class LongBuildController {
 	public incrementFilesCounter(pathname?: string): void {
 		// cancel any prior resolve that may have been triggered.
 		this.steps[this.buildNumber].cancelResolve()
-		// this.buildResolveCancels.at(-1)!() // TODO: using `at(-1)` is not very nice. you should abstract away a given "build".
 		++this.remainingFilesCounter
 		console.log("increment for:", pathname, this.remainingFilesCounter)
 	}
@@ -141,15 +140,13 @@ export class LongBuildController {
 		// cancel any prior resolve that may have been triggered,
 		// so that we always ensure that the desired amount of time has been waited with absolutely no resource processing in between.
 		this.steps[this.buildNumber].cancelResolve()
-		// this.buildResolveCancels.at(-1)!() // TODO: using `at(-1)` is not very nice. you should abstract away a given "build".
 		if ((--this.remainingFilesCounter) <= 0) {
 			this.steps[this.buildNumber].signalresolve()
 		}
 		console.log("decrement for:", pathname, this.remainingFilesCounter)
 	}
 
-	public cacheResolvedResult(args?: OnResolveResult | undefined | null) {
-		if (!args?.path) { return }
+	public cacheResolvedResult(args: OnResolveResult) {
 		const
 			path = pathToPosixPath(args.path!),
 			namespace = args.namespace ?? "file",

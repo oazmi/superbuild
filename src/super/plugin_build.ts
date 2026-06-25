@@ -3,7 +3,7 @@
  * @module
 */
 
-import { array_isEmpty, isNull, type MaybePromise } from "../deps.ts"
+import { array_isEmpty, isNull, isRecord, type MaybePromise } from "../deps.ts"
 import type {
 	EsbuildBuildOptions,
 	EsbuildBuildResult,
@@ -15,6 +15,7 @@ import type {
 	OnLoadCallback,
 	OnLoadOptions,
 	OnLoadResult,
+	OnResolveArgs,
 	OnResolveCallback,
 	OnResolveOptions,
 } from "../esbuild/strongtypes.ts"
@@ -25,6 +26,38 @@ import type { SuperBuildContext } from "./build_context.ts"
 import type { OnTransformCallback, OnTransformOptions } from "./typedefs.ts"
 import { INNER_PLUGIN_BUILD } from "./typedefs.ts"
 
+
+/** holds the original user/plugin-provided `OnResolveArgs.pluginData` when the {@link SuperPluginBuild.resolve} method is invoked by some plugin.
+ *
+ * its presence signifies if the caller of the `onResolve` methods is actually `build.resolve(...)`,
+ * in order to hint that the resolved path should neither be cached, nor should the file counter be incremented,
+ * as there is no direct "resource loading" that will occur as a consequence of this path resolution.
+*/
+const ORIGINAL_PLUGINDATA = Symbol()
+
+/** in the context of {@link ORIGINAL_PLUGINDATA}, this symbol indicates that a plugin data does not exist inside the `options` passed to {@link SuperPluginBuild.resolve}. */
+const ORIGINAL_PLUGINDATA_DNE = Symbol()
+
+const wrap_resolve_call_options = (options: EsbuildResolveOptions = {}): EsbuildResolveOptions => {
+	const
+		original_plugindata = ("pluginData" in options) ? options.pluginData : ORIGINAL_PLUGINDATA_DNE,
+		wrapped_options: EsbuildResolveOptions = { ...options, pluginData: { [ORIGINAL_PLUGINDATA]: original_plugindata } }
+	return wrapped_options
+}
+
+const unwrap_resolve_call_options = (
+	args: OnResolveArgs & { pluginData: { [ORIGINAL_PLUGINDATA]: any } }
+): OnResolveArgs => {
+	const
+		original_plugindata = args.pluginData[ORIGINAL_PLUGINDATA],
+		unwrapped_args = { ...args, pluginData: original_plugindata }
+	if (original_plugindata === ORIGINAL_PLUGINDATA_DNE) { delete unwrapped_args["pluginData"] }
+	return unwrapped_args
+}
+
+const is_wrapped_resolve_call = (args: OnResolveArgs): args is (
+	OnResolveArgs & { pluginData: { [ORIGINAL_PLUGINDATA]: any } }
+) => { return isRecord(args.pluginData) ? (ORIGINAL_PLUGINDATA in args.pluginData) : false }
 
 /** this is the extension of `esbuild.PluginBuild` that introduces additional functionality to esbuild's plugin api. */
 export class SuperPluginBuild implements EsbuildPluginBuild {
@@ -54,13 +87,20 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 		this[INNER_PLUGIN_BUILD] = base_plugin_build
 	}
 
-	public resolve(path: string, options?: EsbuildResolveOptions): Promise<EsbuildResolveResult> {
-		const result = this.basePluginBuild.resolve(path, options)
-		// we must decrement the `remainingFilesCounter` of the long-build plugin,
-		// because the `resolve` function will trigger its `onResolve` hook,
-		// leading to a double count (which we compensate for by decrementing).
-		this.ctx.longBuildController.decrementFilesCounter(path)
-		return result
+	public resolve(path: string, options: EsbuildResolveOptions = {}): Promise<EsbuildResolveResult> {
+		// `SuperPluginBuild.resolve` calls should not influence the long-build plugin's `remainingFilesCounter` at all
+		// (nor should its result get cached by `LongBuildController.cacheResolvedResult(...)`).
+		// however, the `onResolve` hooks have no knowledge of where the path-resolution request comes from;
+		// it could either come directly from esbuild (after traversing the parent resource's imports),
+		// or it could come from a plugin utilizing `build.resolve(...)`.
+		// thus, in order to make `SuperPluginBuild.resolve` calls discoverable, we hijack the `options.pluginData` here,
+		// and keep a copy of the original `pluginData` by using the `wrap_resolve_call_options` function.
+		// then, the overloaded `onResolve` hook will first check to see if the special `options.pluginData[ORIGINAL_PLUGINDATA]` symbol is present:
+		// - if it is, then that will be an indication of `SuperPluginBuild.resolve` being used, in which case we skip caching altogether,
+		//   and also decrement the file counter once to compensate for the default increment performed by the long-build plugin's `onResolve` hook.
+		// - if the symbol is not present, then it will indicate that it is a natural path-resolution request coming from esbuild (i.e. imports traversal).
+		//   in such cases, we carry out our resolved-path cache registration like normal.
+		return this.basePluginBuild.resolve(path, wrap_resolve_call_options(options))
 	}
 
 	public onStart(callback: () => MaybePromise<EsbuildOnStartResult | null | void>): void {
@@ -72,14 +112,30 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 	}
 
 	public onResolve(options: OnResolveOptions, callback: OnResolveCallback): void {
-		// TODO-ISSUE: esbuild's own native resolver never makes it to here because it gets resolved internally, bypassing the plugin api.
+		// NOTE: esbuild's own native resolver never makes it to here because it gets resolved internally, bypassing the plugin api.
 		// hence, our cached resolved check is rendered useless because of it.
-		// in order to fix that, we will unfortunately have to mimic esbuild's native node resolver.
-		// luckily for me, I had already done something similar in my `esbuild-plugin-deno` library, without adding dependencies. so it is achievable.
+		// however, this is where our `nativeReplicaPlugin` comes in; it mimics esbuild's native node-resolution through the api layer,
+		// and hence all path resolutions get intercepted here by super-build.
 		const long_build_controller = this.ctx.longBuildController
 		const new_callback: OnResolveCallback = async (args) => {
-			const result = await callback(args)
-			long_build_controller.cacheResolvedResult(result)
+			// see the long comment under `SuperPluginBuild.resolve` to understand why we try to detect if the caller of this `onResolve`
+			// hook comes naturally from esbuild, or if it is a plugin that is performing a `build.resolve` call.
+			const
+				is_resolve_call = is_wrapped_resolve_call(args),
+				result = await callback(is_resolve_call ? unwrap_resolve_call_options(args) : args),
+				is_valid_result = !isNull(result?.path)
+			if (is_valid_result) {
+				// if the caller was not esbuild (i.e. a `buildresolve(...)` was performed by a plugin),
+				// then we need only to decrement the file counter to compensate for the initial increment by the long-build plugin's `onResolve` hook.
+				// this is because the result of this path resolution will not directly result in the creation of a new file (i.e. an `onLoad` operation),
+				// nor will this resolved path contribute to any future path resolution in terms of path caching by esbuild.
+				if (is_resolve_call) { long_build_controller.decrementFilesCounter(result.path) }
+				// but if the caller was esbuild, then the resolved path will get cached and esbuild will entirely skip loading (i.e. `onLoad` operation)
+				// the same file again if the resolved `namespace:path` pair had been encountered before (i.e. resource caching).
+				// thus, the file counter must be decremented immediately if the resolved path had been previously cached (since no loading will occur for it anymore),
+				// or if the resolved path points towards a new file, then the file counter's decrement will occur later after it has passed through its `onLoad` or `onTransform` stage.
+				else { long_build_controller.cacheResolvedResult(result) }
+			}
 			return result
 		}
 		return this.basePluginBuild.onResolve(options, new_callback)
@@ -135,7 +191,11 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 			const result = await transform_interceptor_callback(args)
 			// every loaded result indicates that a file has gone out of circulation,
 			// and hence we must decrement the `remainingFilesCounter` of the long-build plugin.
-			long_build_controller.decrementFilesCounter(args.path)
+			if (!isNull(result)) { long_build_controller.decrementFilesCounter(args.path) }
+			// TODO: our `nativeReplicaPlugin` is expected to load everything that is left uncaptured/unloaded.
+			// yet, if something comes its way (i.e. the final loader) but fails to get loaded with a valid `result`,
+			// then our plugin should throw a warning to indicate that either something is wrong with our
+			// `nativeReplicaPlugin` itself, or if the input resolved path may be incorrect.
 			return result
 		}
 

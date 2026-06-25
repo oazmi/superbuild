@@ -27,7 +27,7 @@ export const allEsbuildLoaders: Array<EsbuildLoaderTypeCompatible> = [
 ]
 
 /** this is the common plugin data utilized by this esbuild-plugin. */
-export type CommonPluginData = {}
+export type CommonPluginData = any
 
 /** these are the various formats of input and output specification accepted by esbuild for a single entity. */
 export type EsbuildEntryPointType =
