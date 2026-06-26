@@ -37,12 +37,15 @@ export const cancelableDelayedPromiseResolver = <T>(
 	return [resolve, cancel]
 }
 
+let uuid_counter = -1
+
 /** generates `segments` number of 8-character (32-bit) uuid based on the current time stamp. */
 export const generateUuid = (segments = 1, current_time?: number) => {
 	current_time ??= date_now()
+	uuid_counter++
 	const crc32_segments = Array<number>(math_max(segments, 0)).fill(current_time).map((time, i) => {
 		const
-			seed = time + i,
+			seed = uuid_counter + time + i,
 			seed_arr = new Uint8Array((new Uint32Array([seed])).buffer),
 			uuid_segment = crc32(seed_arr)
 		return uuid_segment.toString(16).padStart(8, "0")

@@ -49,8 +49,14 @@ export const ${LONGBUILD.RESOURCE_VAR_NAME}: Map<
 // hence, to ensure that it never gets stripped away (because we want to dynamically import it later),
 // we perform an action that has a potential for side-effect, preventing esbuild from ever dropping this variable in the bundle.
 ${LONGBUILD.RESOURCE_VAR_NAME}.size
+
+export const console_log = (...args: any[]) => {
+	// console.log(...args) // for debugging purposes.
+}
 `,
 }
+
+const import_statement_regex = new RegExp("await\\s+import\\s*\\(\\s*(?<quote>[\"'`])(?<importPath>.*?)\\k<quote>\\s*\\)", "g")
 
 /** the controller used for commanding the state of the "long build" plugin. */
 export class LongBuildController {
@@ -170,9 +176,16 @@ export class LongBuildController {
 	 * this method has to be made asynchronous.
 	 * I'm certainly not going to be using `eval` or the `Function` constructor, because they are often restricted in some js-environments.
 	*/
-	public async parseLongBuildFileContent(): Promise<Map<string, ImportEntity[]>> {
-		// TODO: implement.
-		return new Map()
+	public async parseLongBuildFileContent(longbuild_file_contents: string): Promise<Map<string, ImportEntity[]>> {
+		const
+			// we first strip away all dynamic import statements and replace them with just the import string.
+			// for instance: `await import("./hello-world.xyz")` will transform to just "String.raw`./hello-world.xyz`".
+			js_content_without_imports = longbuild_file_contents.replaceAll(import_statement_regex, "String.raw`$<importPath>`"),
+			js_blob = new Blob([js_content_without_imports], { type: "text/javascript" }),
+			js_blob_url = URL.createObjectURL(js_blob),
+			// now we dynamically load our bundled long-build js file that contains import statements, and then return them.
+			{ [LONGBUILD.RESOURCE_VAR_NAME]: resourceImports } = await import(js_blob_url)
+		return resourceImports
 	}
 }
 
@@ -242,10 +255,11 @@ export class LongBuildStep {
 				: "// no imports were pushed this build-number. hence, this is the final long-build file."
 
 		return `
-import { ${LONGBUILD.RESOURCE_VAR_NAME} } from "${deps_filename}"
+import { ${LONGBUILD.RESOURCE_VAR_NAME}, console_log } from "${deps_filename}"
+export { ${LONGBUILD.RESOURCE_VAR_NAME} } // export the "resourceImports" so that it can be imported by the parser.
 ${recursion_import_statement}
 
-console.log("long build: ${this.buildNumber}")
+console_log("long build: ${this.buildNumber}")
 ${all_imports_js_str}
 		`.trim()
 	}
@@ -300,6 +314,14 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 			// we increment the `remainingFilesCounter` because returning from this function will cause it to drop to `-1` if we don't increment.
 			++controller.remainingFilesCounter
 			return { contents, loader: "ts", resolveDir: "./", warnings }
+		})
+
+		build.onEnd(async (result) => {
+			const longbuild_files = result.outputFiles?.filter((file) => { return file.path.endsWith(longbuild_base_filename) }) ?? []
+			console.assert(longbuild_files.length === 1)
+			for (const longbuild_file of longbuild_files) {
+				console.log(await controller.parseLongBuildFileContent(longbuild_file.text))
+			}
 		})
 	}
 }
