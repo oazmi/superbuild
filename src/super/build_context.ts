@@ -7,12 +7,22 @@
 */
 
 import { isArray, parseFilepathInfo } from "../deps.ts"
-import type { EsbuildBuildOptions } from "../esbuild/strongtypes.ts"
+import type { EsbuildBuildOptions, EsbuildOnEndCallback } from "../esbuild/strongtypes.ts"
 import { LongBuildController, longBuildPlugin } from "../plugins/long_build.ts"
 import { nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import { SuperPlugin } from "./plugin.ts"
-import type { OnTransformHandler, OnTransformResult } from "./typedefs.ts"
+import type { SuperPluginBuild } from "./plugin_build.ts"
+import type { OnTransformResult } from "./typedefs.ts"
 
+
+export interface OnTransformHandler extends OnTransformOptions {
+	pluginName: string
+	callback: OnTransformCallback
+}
+
+export interface OnEndHandler {
+	callback: EsbuildOnEndCallback
+}
 
 /** a centralized context is created for each individual {@link SuperBuild.build} call. */
 export class SuperBuildContext {
@@ -20,6 +30,12 @@ export class SuperBuildContext {
 	 * in order to transfer them to the registered {@link SuperPluginBuild.onTransform} hooks.
 	*/
 	public onTransformHandlers: OnTransformHandler[] = []
+
+	/** contains a list of `onEnd` handlers that will be called at the end of the build,
+	 * after we have modified the contents of the resulting in-memory files.
+	 * the callbacks accumulated here are registered by {@link SuperPluginBuild.onEnd}.
+	*/
+	public onEndHandlers: OnEndHandler[] = []
 
 	/** the controller used for commanding the state of the "long build" plugin. */
 	public longBuildController: LongBuildController

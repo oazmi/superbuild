@@ -3,10 +3,10 @@
  * @module
 */
 
-import type { MaybePromise } from "../deps.ts"
+import type { AutoSuggestOrString, MaybePromiseOrNull, Optional } from "../deps.ts"
 import type { EsbuildLoaderType, EsbuildPartialMessage, OnLoadResult } from "../esbuild/strongtypes.ts"
-import type { SuperPluginBuild } from "./plugin_build.ts"
 import type { EsbuildNativeResolver, nativeReplicaPluginSetup } from "../plugins/native_replica.ts"
+import type { SuperPluginBuild } from "./plugin_build.ts"
 
 
 /** this symbol gives you access to the **true** internal `PluginBuild` object that was used for constructing a {@link SuperPluginBuild}.
@@ -19,7 +19,7 @@ export const INNER_PLUGIN_BUILD = Symbol()
 export interface OnTransformOptions {
 	filter: RegExp
 	namespace?: string
-	loader?: string
+	loader?: AutoSuggestOrString<EsbuildLoaderType>
 }
 
 export interface OnTransformArgs {
@@ -34,7 +34,7 @@ export interface OnTransformArgs {
 	namespace: string
 
 	/** the loader that is supposed to be used for this {@link contents} for the transformation. */
-	loader: string
+	loader: AutoSuggestOrString<EsbuildLoaderType>
 
 	/** any url-suffix string that is present in the {@link path}. */
 	suffix: string
@@ -118,15 +118,7 @@ export interface OnTransformResult {
  * if no transformation hook returns a non-nullable after all matches have been made,
  * then the loaded contents from the `onLoad` hook will be passed to esbuild as is.
 */
-export type OnTransformCallback = (args: OnTransformArgs) => MaybePromise<OnTransformResult | null | undefined>
-
-export interface OnTransformHandler {
-	pluginName: string
-	filter: RegExp
-	namespace?: string
-	loader?: string
-	callback: OnTransformCallback
-}
+export type OnTransformCallback = (args: OnTransformArgs) => MaybePromiseOrNull<OnTransformResult>
 
 export interface ImportEntity<K = any> {
 	/** include a unique key that you can use to trace back the imported entity,

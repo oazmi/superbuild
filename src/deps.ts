@@ -1,6 +1,5 @@
-import { } from "@oazmi/kitchensink/crossenv"
-import { } from "@oazmi/kitchensink/pathman"
 import { isString } from "@oazmi/kitchensink/struct"
+import type { MaybePromise } from "@oazmi/kitchensink/typedefs"
 
 
 export type * as esbuild from "@oazmi/esbuild-types"
@@ -12,7 +11,7 @@ export { ensureFileUrlIsLocalPath, fileUrlToLocalPath, getUriScheme, parseFilepa
 export { promiseOutside, promiseTimeout } from "@oazmi/kitchensink/promiseman"
 export { escapeLiteralStringForRegex } from "@oazmi/kitchensink/stringman"
 export { isArray, isFunction, isRecord, isString } from "@oazmi/kitchensink/struct"
-export type { MaybePromise } from "@oazmi/kitchensink/typedefs"
+export type { MaybePromise, Optional } from "@oazmi/kitchensink/typedefs"
 
 /** flags used for minifying (or eliminating) debugging logs and asserts, when an intelligent bundler, such as `esbuild`, is used. */
 export const enum DEBUG {
@@ -58,3 +57,9 @@ export const urlToString = (url: string | URL): string => { return isString(url)
  * ```
 */
 export type AutoSuggestOrString<T> = T | (string & {})
+
+/** represents either a regular value `T`, or nullable value (`null | undefined`), or a `Promise` thereof. */
+export type MaybePromiseOrNull<T> = MaybePromise<T | null | undefined>
+
+/** represents either a regular value `T`, or void value (`null | undefined | void`), or a `Promise` thereof. */
+export type MaybePromiseOrVoid<T> = MaybePromise<T | null | undefined | void>

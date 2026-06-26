@@ -6,7 +6,7 @@
  * @module
 */
 
-import type { esbuild, MaybePromise } from "../deps.ts"
+import type { esbuild, MaybePromiseOrNull, MaybePromiseOrVoid } from "../deps.ts"
 import type { CommonPluginData } from "./typedefs.ts"
 
 
@@ -41,8 +41,8 @@ export type OnResolveArgs = Omit<esbuild.OnResolveArgs, "pluginData"> & { plugin
 /** type alias for `esbuild.OnResolveResult`. */
 export type OnResolveResult = esbuild.OnResolveResult
 
-/** type alias for the callback function provided to `onResolve` the function (aka `esbuild.PluginBuild["onResolve"]`). */
-export type OnResolveCallback = (args: OnResolveArgs) => MaybePromise<OnResolveResult | null | undefined>
+/** type alias for the callback function provided to the `onResolve` function (aka `esbuild.PluginBuild["onResolve"]`). */
+export type OnResolveCallback = (args: OnResolveArgs) => MaybePromiseOrNull<OnResolveResult>
 
 
 //// `onLoad` ////
@@ -56,8 +56,8 @@ export type OnLoadArgs = Omit<esbuild.OnLoadArgs, "pluginData"> & { pluginData: 
 /** type alias for `esbuild.OnLoadResult`. */
 export type OnLoadResult = esbuild.OnLoadResult
 
-/** type alias for the callback function provided to `OnLoadCallback` the function (aka `esbuild.PluginBuild["OnLoadCallback"]`). */
-export type OnLoadCallback = (args: OnLoadArgs) => MaybePromise<OnLoadResult | null | undefined>
+/** type alias for the callback function provided to the `OnLoad` function (aka `esbuild.PluginBuild["OnLoad"]`). */
+export type OnLoadCallback = (args: OnLoadArgs) => MaybePromiseOrNull<OnLoadResult>
 
 
 //// `resolve` ////
@@ -74,8 +74,16 @@ export type EsbuildResolveResult = esbuild.ResolveResult
 /** type alias for `esbuild.OnStartResult`. */
 export type EsbuildOnStartResult = esbuild.OnStartResult
 
+/** type alias for the callback function provided to the `OnStart` function (aka `esbuild.PluginBuild["OnStart"]`). */
+export type EsbuildOnStartCallback = () => MaybePromiseOrVoid<EsbuildOnStartResult>
+
 /** type alias for `esbuild.OnEndResult`. */
 export type EsbuildOnEndResult = esbuild.OnEndResult
+
+/** type alias for the callback function provided to the `OnEnd` function (aka `esbuild.PluginBuild["OnEnd"]`). */
+export type EsbuildOnEndCallback<
+	ProvidedOptions extends EsbuildBuildOptions = EsbuildBuildOptions
+> = (result: EsbuildBuildResult<ProvidedOptions>) => MaybePromiseOrVoid<EsbuildOnEndResult>
 
 
 //// build options, build results, and build type ////

@@ -3,12 +3,11 @@
  * @module
 */
 
-import { array_isEmpty, isNull, isRecord, type MaybePromise } from "../deps.ts"
+import { array_isEmpty, isNull, isRecord } from "../deps.ts"
 import type {
 	EsbuildBuildOptions,
-	EsbuildBuildResult,
-	EsbuildOnEndResult,
-	EsbuildOnStartResult,
+	EsbuildOnEndCallback,
+	EsbuildOnStartCallback,
 	EsbuildPluginBuild,
 	EsbuildResolveOptions,
 	EsbuildResolveResult,
@@ -103,11 +102,14 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 		return this.basePluginBuild.resolve(path, wrap_resolve_call_options(options))
 	}
 
-	public onStart(callback: () => MaybePromise<EsbuildOnStartResult | null | void>): void {
+	public onStart(callback: EsbuildOnStartCallback): void {
 		return this.basePluginBuild.onStart(callback)
 	}
 
-	public onEnd(callback: (result: EsbuildBuildResult) => MaybePromise<EsbuildOnEndResult | null | void>): void {
+	public onEnd(callback: EsbuildOnEndCallback): void {
+		// TODO: implement. this is currently defunct, as I think I'll first try implementing an "onEmit" mechanism for mutating the files that are to be written.
+		const new_callback: EsbuildOnEndCallback = (result) => { }
+		this.ctx.onEndHandlers.push({ callback })
 		return this.basePluginBuild.onEnd(callback)
 	}
 
