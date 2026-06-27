@@ -216,7 +216,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 
 	/** TODO: implement the mechanism inside `onEnd`, and then add documentation and usage examples. */
 	public onEmit(options: OnEmitOptions, callback: OnEmitCallback): void {
-		const { filter, namespace, loader, transformLoader } = options
-		this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, namespace, loader, transformLoader, callback })
+		const { filter, inputs } = options
+		this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, inputs, callback })
 	}
 }

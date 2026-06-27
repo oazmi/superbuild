@@ -161,23 +161,54 @@ export interface ImportEntity<K = any> {
 	// external?: boolean
 }
 
-export interface OnEmitOptions {
+/** a single input file filteration rule used in {@link OnEmitOptions}. */
+export interface OnEmitOptions_InputFilter {
+	/** a resolved path name filter of the input resource that is to be matched by at least one of the emitted file's {@link OnEmitArgs.inputs | inputs}. */
 	filter: RegExp
+
+	/** specify an optional namespace in which the loaded input file must be part of. */
 	namespace?: string
+
+	/** specify an optional loader which should have been used to load this input file by the {@link SuperPluginBuild.onLoad} hook. */
 	loader?: AutoSuggestOrString<EsbuildLoaderType>
+
+	/** specify an optional transform-loader which should have been used to load this input file during the transformation hook ({@link SuperPluginBuild.onTransform}).
+	 * if no {@link SuperPluginBuild.onTransform} hook captured this input resource,
+	 * then the `loader` value from the prior {@link SuperPluginBuild.onLoad} stage will be used to match against this option.
+	*/
 	transformLoader?: EsbuildLoaderType
+}
+
+export interface OnEmitOptions {
+	/** a filter for the {@link OnEmitArgs.outputPath | output filename} of a file that is to be emitted. */
+	filter: RegExp
+
+	/** a filter for specifying which input resources should be part of what constitutes this output file.
+	 *
+	 * for instance, if one were to bundle entrypoints `A` and `B`, and `A` depended on `X` and `Y`, while `B` depended on `Y` and `Z`,
+	 * then the emitted bundled file corresponding to entrypoint `A` will have all three `A`, `X`, and `Y` show up in its `inputs` array.
+	 * similarly, the emitted bundled file corresponding to entrypoint `B` will have all three `B`, `Y`, and `Z` show up in its `inputs` array.
+	 *
+	 * when multiple input filters are specified, they (the filters) will all need to be satisfied simultaneously (logical AND)
+	 * by the list of available {@link OnEmitArgs.inputs} of the emitted resource. for instance, for the scenario mentioned prior:
+	 * - if `inputs = [{ filter: /A/ }, { filter: /Y/ }]`,
+	 *   then the emitted file corresponding to entrypoint `A` will be matched, but not `B` (since it has no input with the name `A`).
+	 * - if `inputs = [{ filter: /Y/ }]`,
+	 *   then the emitted files corresponding to both entrypoints `A` and `B` will be matched (since they both incorporate the dependency file `Y`).
+	 * - if `inputs = [{ filter: /Y/ }, { filter: /Z/ }]`,
+	 *   then only the emitted file corresponding to entrypoint `B` will be matched, and not `A` (since `A` does not incorporate the dependency file `Z`).
+	*/
+	inputs?: Array<OnEmitOptions_InputFilter>
 }
 
 // TODO: it'll be cool if the return value of the `onEmit` callback can declare a different output directory path,
 // and then also specify if the paths of the resources linked to this file, and the files this file imports should be updated as well.
 // although, for such a feature, we will need to first produce a dependency graph, which will require the use of esbuild's `metafile` option.
 
-export interface OnEmitArgs {
+/** a description of an input file that was bundled into a physical output file ({@link OnEmitArgs}). */
+export interface BundledInputFile {
 	/** the original (absolute) resolved path (return value of the `onResolve` hook) of this bundled resource. */
 	path: string
-
-	/** the output path of this bundled resource, relative to the `outdir` directory, always in posix format. */
-	outputPath: string
 
 	/** the namespace inherited from the `onTransform` hook
 	 * (which gets inherited from the `onLoad` hook, and the `onResolve` hook prior to it).
@@ -193,23 +224,28 @@ export interface OnEmitArgs {
 	*/
 	transformLoader: string
 
-	/** a list of resource imports that were included in the build for this resource.
-	 * these, however, are not currently _bundled_ into the contents of your resource;
-	 * they're still external resources that your transformed file will need to reference in order to import during runtime.
-	*/
-	imports: Array<Optional<ImportEntity, "key">>
-
-	/** a list of resources that were bundled into this resource (by esbuild), or were chunked by esbuild for this resource. */
-	includes: Array<string>
-
-	/** any url-suffix string that might present in the {@link resolvedPath}. */
+	/** any url-suffix string that might present in the {@link path | resolved path}. */
 	suffix: string
-
-	/** the transformed content that may need to have the linked {@link imports} re-incorporated. */
-	contents: string | Uint8Array<ArrayBuffer>
 
 	/** arbitrary data passed from the {@link OnTransformResult.emitData | transformation stage} to the emit stage. */
 	emitData: any
+}
+
+export interface OnEmitArgs {
+	/** the output path of this bundled resource, relative to the `outdir` directory, always in posix format. */
+	outputPath: string
+
+	/** a list of input resources that were bundled into this resource (by esbuild), or were chunked by esbuild for this resource. */
+	inputs: Array<BundledInputFile>
+
+	/** a list of resource imports that were included in the build for this resource.
+	 * these, however, are not currently _bundled_ into the contents of your resource;
+	 * they're still external resources that your transformed file will need to reference (re-incorporate) in order to import during runtime.
+	*/
+	imports: Array<Optional<ImportEntity, "key">>
+
+	/** the transformed and/or bundled content that may need to have the linked {@link imports} re-incorporated into it. */
+	contents: Uint8Array<ArrayBuffer>
 }
 
 export interface OnEmitResult {
