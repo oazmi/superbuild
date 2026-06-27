@@ -22,7 +22,7 @@ import { concatArrays } from "../funcdefs.ts"
 import type { EsbuildNativeResolver, nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import { SuperBuild } from "./build.ts"
 import type { SuperBuildContext } from "./build_context.ts"
-import type { OnTransformCallback, OnTransformOptions } from "./typedefs.ts"
+import type { OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions } from "./typedefs.ts"
 import { INNER_PLUGIN_BUILD } from "./typedefs.ts"
 
 
@@ -212,5 +212,11 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 	public onTransform(options: OnTransformOptions, callback: OnTransformCallback): void {
 		const { filter, namespace, loader } = options
 		this.ctx.onTransformHandlers.push({ pluginName: this.pluginName, filter, namespace, loader, callback })
+	}
+
+	/** TODO: implement the mechanism inside `onEnd`, and then add documentation and usage examples. */
+	public onEmit(options: OnEmitOptions, callback: OnEmitCallback): void {
+		const { filter, namespace, loader, transformLoader } = options
+		this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, namespace, loader, transformLoader, callback })
 	}
 }

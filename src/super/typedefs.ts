@@ -16,6 +16,9 @@ import type { SuperPluginBuild } from "./plugin_build.ts"
 */
 export const INNER_PLUGIN_BUILD = Symbol()
 
+/** a return value of the {@link OnEmitResult.contents} that indicates that no file should be emitted for this resource. */
+export const EMIT_EMPTY = Symbol()
+
 export interface OnTransformOptions {
 	filter: RegExp
 	namespace?: string
@@ -87,6 +90,11 @@ export interface OnTransformResult {
 	*/
 	pluginData?: any
 
+	/** pass some arbitrary data from the transformation stage to the emit stage.
+	 * TODO: implement. I'll also need to strip away this field before passing the result to esbuild, otherwise it'll go maj fr fr.
+	*/
+	// emitData?: any
+
 	// TODO: I'll add this later. also, will `key` be necessary? sure the `key` will be convenient, but the position within the array will also indicate the location of the import.
 	imports?: ImportEntity[]
 
@@ -152,3 +160,83 @@ export interface ImportEntity<K = any> {
 	// kind: EsbuildOutputsImportKind // for now, it can only be a regular js dynamic import, since that is what the long-build performs.
 	// external?: boolean
 }
+
+export interface OnEmitOptions {
+	filter: RegExp
+	namespace?: string
+	loader?: AutoSuggestOrString<EsbuildLoaderType>
+	transformLoader?: EsbuildLoaderType
+}
+
+// TODO: it'll be cool if the return value of the `onEmit` callback can declare a different output directory path,
+// and then also specify if the paths of the resources linked to this file, and the files this file imports should be updated as well.
+// although, for such a feature, we will need to first produce a dependency graph, which will require the use of esbuild's `metafile` option.
+
+export interface OnEmitArgs {
+	/** the original (absolute) resolved path (return value of the `onResolve` hook) of this bundled resource. */
+	path: string
+
+	/** the output path of this bundled resource, relative to the `outdir` directory, always in posix format. */
+	outputPath: string
+
+	/** the namespace inherited from the `onTransform` hook
+	 * (which gets inherited from the `onLoad` hook, and the `onResolve` hook prior to it).
+	*/
+	namespace: string
+
+	/** the `onLoad` loader that was used for this resource. equivalent to {@link OnEmitOptions.loader}. */
+	loader: string
+
+	/** the `onTransform` loader that was used for this resource during its transformation stage.
+	 * if the resource did not go through a transformation stage, then this value will be the same as {@link loader}.
+	 * moreover, this value is equivalent to the {@link OnEmitOptions.transformLoader} provided in the filteration options.
+	*/
+	transformLoader: string
+
+	/** a list of resource imports that were included in the build for this resource.
+	 * these, however, are not currently _bundled_ into the contents of your resource;
+	 * they're still external resources that your transformed file will need to reference in order to import during runtime.
+	*/
+	imports: Array<Optional<ImportEntity, "key">>
+
+	/** a list of resources that were bundled into this resource (by esbuild), or were chunked by esbuild for this resource. */
+	includes: Array<string>
+
+	/** any url-suffix string that might present in the {@link resolvedPath}. */
+	suffix: string
+
+	/** the transformed content that may need to have the linked {@link imports} re-incorporated. */
+	contents: string | Uint8Array<ArrayBuffer>
+
+	/** arbitrary data passed from the {@link OnTransformResult.emitData | transformation stage} to the emit stage. */
+	emitData: any
+}
+
+export interface OnEmitResult {
+	/** provide an alternate path to place this resource. if a relative path is provided (which is what is recommended),
+	 * then this file will be placed relative to the output directory specified in the initial build options.
+	*/
+	path?: string
+
+	/** if an alternate {@link path} is to be used, then should the dependents of this resource have their
+	 * {@link OnEmitArgs.imports} updated to reflect the new path of this resource?
+	*/
+	updateDependents?: boolean
+
+	/** the contents of the file after you've re-incorporated the imported/dependency links into it.
+	 *
+	 * if left `undefined`, then the original {@link OnEmitArgs.contents} will be used as its value.
+	 * and if {@link EMIT_EMPTY} was used, then it would indicate that this resource file should not be emitted
+	 * (i.e. it should be deleted, and never written onto your disk).
+	*/
+	contents?: typeof EMIT_EMPTY | string | Uint8Array<ArrayBuffer>
+}
+
+/** this is your `onEmit` hook function that gets called,
+ * if the handler associated with it allows a certain result from an `onLoad` hook to pass through its filter ({@link OnEmitOptions}).
+ *
+ * if your return value is nullable (`null` or `undefined`), then the next matching `onEmit` hook function will try to mutate the finalized loaded/transformed contents.
+ * if no emit hook returns a non-nullable after all matches have been made,
+ * then the transformed contents from the `onTransform` hook will be passed to esbuild as is.
+*/
+export type OnEmitCallback = (args: OnEmitArgs) => MaybePromiseOrNull<OnEmitResult>

@@ -12,12 +12,17 @@ import { LongBuildController, longBuildPlugin } from "../plugins/long_build.ts"
 import { nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import { SuperPlugin } from "./plugin.ts"
 import type { SuperPluginBuild } from "./plugin_build.ts"
-import type { OnTransformResult } from "./typedefs.ts"
+import type { OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions, OnTransformResult } from "./typedefs.ts"
 
 
 export interface OnTransformHandler extends OnTransformOptions {
 	pluginName: string
 	callback: OnTransformCallback
+}
+
+export interface OnEmitHandler extends OnEmitOptions {
+	pluginName: string
+	callback: OnEmitCallback
 }
 
 export interface OnEndHandler {
@@ -30,6 +35,12 @@ export class SuperBuildContext {
 	 * in order to transfer them to the registered {@link SuperPluginBuild.onTransform} hooks.
 	*/
 	public onTransformHandlers: OnTransformHandler[] = []
+
+	/** contains a list of `onEmit` handlers that will be called once the file contents of the bundle has been finalized by esbuild,
+	 * but additional actions (such as linking, and re-incorporating imports for generic loaders) still need to be taken care of by the user's plugins.
+	 * the callbacks accumulated here are registered by {@link SuperPluginBuild.onEmit}.
+	*/
+	public onEmitHandlers: OnEmitHandler[] = []
 
 	/** contains a list of `onEnd` handlers that will be called at the end of the build,
 	 * after we have modified the contents of the resulting in-memory files.
