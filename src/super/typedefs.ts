@@ -93,7 +93,7 @@ export interface OnTransformResult {
 	/** pass some arbitrary data from the transformation stage to the emit stage.
 	 * TODO: implement. I'll also need to strip away this field before passing the result to esbuild, otherwise it'll go maj fr fr.
 	*/
-	// emitData?: any
+	emitData?: any
 
 	// TODO: I'll add this later. also, will `key` be necessary? sure the `key` will be convenient, but the position within the array will also indicate the location of the import.
 	imports?: ImportEntity[]
@@ -222,13 +222,15 @@ export interface BundledInputFile {
 	 * if the resource did not go through a transformation stage, then this value will be the same as {@link loader}.
 	 * moreover, this value is equivalent to the {@link OnEmitOptions.transformLoader} provided in the filteration options.
 	*/
-	transformLoader: string
+	transformLoader: NonNullable<OnTransformResult["loader"]> | ""
 
 	/** any url-suffix string that might present in the {@link path | resolved path}. */
 	suffix: string
 
 	/** arbitrary data passed from the {@link OnTransformResult.emitData | transformation stage} to the emit stage. */
-	emitData: any
+	emitData: NonNullable<OnTransformResult["emitData"]>
+
+	// TODO: add `with` and `kind` fields as well.
 }
 
 export interface OnEmitArgs {

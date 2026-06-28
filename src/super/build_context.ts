@@ -12,7 +12,7 @@ import { LongBuildController, longBuildPlugin } from "../plugins/long_build.ts"
 import { nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import { SuperPlugin } from "./plugin.ts"
 import type { SuperPluginBuild } from "./plugin_build.ts"
-import type { OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions, OnTransformResult } from "./typedefs.ts"
+import type { BundledInputFile, OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions, OnTransformResult } from "./typedefs.ts"
 
 
 export interface OnTransformHandler extends OnTransformOptions {
@@ -48,6 +48,12 @@ export class SuperBuildContext {
 	*/
 	public onEndHandlers: OnEndHandler[] = []
 
+	/** holds all loaded resources, using `${namespace}:${resolved_path}` for the key.
+	 * this registry is needed in order to trace back the loaded input file(s) from which an emitted file originates from,
+	 * in order to make the functionality of {@link SuperPluginBuild.onEmit} possible.
+	*/
+	public resolvedResourceRegistry: Map<string, BundledInputFile> = new Map()
+
 	/** the controller used for commanding the state of the "long build" plugin. */
 	public longBuildController: LongBuildController
 
@@ -75,7 +81,7 @@ export class SuperBuildContext {
 		options.plugins.push(nativeReplicaPlugin())
 		// insert a longbuild plugin at the very beginning so that it can intercept all incoming files.
 		const controller = this.longBuildController
-		options.plugins.unshift(longBuildPlugin({ controller }))
+		options.plugins.unshift(longBuildPlugin({ controller, buildContext: this }))
 		options.plugins = options.plugins.map((plugin) => (new SuperPlugin(this, plugin)))
 		// we also insert the unique long build entry point to the options.
 		const

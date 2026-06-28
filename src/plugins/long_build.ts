@@ -7,11 +7,13 @@
  * @module
 */
 
-import { array_isEmpty, escapeLiteralStringForRegex, json_stringify, parseFilepathInfo, pathToPosixPath, promiseOutside } from "../deps.ts"
+import { array_isEmpty, escapeLiteralStringForRegex, json_stringify, parseFilepathInfo, pathToPosixPath, promise_all, promiseOutside } from "../deps.ts"
 import type { EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs, OnResolveArgs, OnResolveResult } from "../esbuild/strongtypes.ts"
 import { cancelableDelayedPromiseResolver, generateUuid } from "../funcdefs.ts"
-import type { SuperPluginBuild } from "../super/mod.ts"
+import type { SuperBuildContext } from "../super/build_context.ts"
+import type { SuperPluginBuild } from "../super/plugin_build.ts"
 import type { ImportEntity } from "../super/typedefs.ts"
+import { INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
 
 
 const enum LONGBUILD {
@@ -267,6 +269,7 @@ ${all_imports_js_str}
 
 export interface LongBuildPluginSetupConfig {
 	controller: LongBuildController
+	buildContext: SuperBuildContext
 }
 
 /** this plugin captures **all** file-namespace imports, and mimics esbuild's native file-loading by using `fetch`,
@@ -277,15 +280,19 @@ export interface LongBuildPluginSetupConfig {
 */
 export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): EsbuildPluginSetup => {
 	const
+		ctx = config.buildContext,
 		controller = config.controller,
 		longbuild_base_filename = controller.baseFilename,
 		longbuild_deps_filename = controller.depsFilename,
 		plugin_namespace = `oazmi-superbuild-long_build-plugin-${controller.uuid}`
 
-	return (build: EsbuildPluginBuild) => {
+	return (build: EsbuildPluginBuild | SuperPluginBuild) => {
 		const
 			filter = RegExp(escapeLiteralStringForRegex(longbuild_base_filename) + "$"),
-			deps_file_filter = RegExp(escapeLiteralStringForRegex(longbuild_deps_filename) + "$")
+			deps_file_filter = RegExp(escapeLiteralStringForRegex(longbuild_deps_filename) + "$"),
+			base_plugin_build = INNER_PLUGIN_BUILD in build
+				? build[INNER_PLUGIN_BUILD]
+				: build
 
 		build.onResolve({ filter: /.*/ }, (args: OnResolveArgs) => {
 			// TODO: I believe `<stdin>` does not go through any `onResolve`, and jumps straight to `onLoad`. so, we must account for not decrementing the counter when it is `<stdin>`.
@@ -316,12 +323,17 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 			return { contents, loader: "ts", resolveDir: "./", warnings }
 		})
 
-		build.onEnd(async (result) => {
-			const longbuild_files = result.outputFiles?.filter((file) => { return file.path.endsWith(longbuild_base_filename) }) ?? []
-			console.assert(longbuild_files.length === 1)
-			for (const longbuild_file of longbuild_files) {
-				console.log(await controller.parseLongBuildFileContent(longbuild_file.text))
-			}
+		base_plugin_build.onEnd(async (result) => {
+			const promises = ctx.onEndHandlers.map((handler) => {
+				return handler.callback(result)
+			})
+			await promise_all(promises)
+
+			// const longbuild_files = result.outputFiles?.filter((file) => { return file.path.endsWith(longbuild_base_filename) }) ?? []
+			// console.assert(longbuild_files.length === 1)
+			// for (const longbuild_file of longbuild_files) {
+			// 	console.log(await controller.parseLongBuildFileContent(longbuild_file.text))
+			// }
 		})
 	}
 }

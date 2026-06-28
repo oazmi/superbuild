@@ -3,7 +3,7 @@ import type { MaybePromise } from "@oazmi/kitchensink/typedefs"
 
 
 export type * as esbuild from "@oazmi/esbuild-types"
-export { array_isEmpty, console_log, date_now, dom_clearTimeout, dom_setTimeout, json_stringify, math_max, object_assign, object_entries, object_fromEntries, object_keys, promise_outside } from "@oazmi/kitchensink/alias"
+export { array_isEmpty, console_log, date_now, dom_clearTimeout, dom_setTimeout, json_stringify, math_max, object_assign, object_entries, object_fromEntries, object_keys, promise_all, promise_outside } from "@oazmi/kitchensink/alias"
 export { bind_array_push } from "@oazmi/kitchensink/binder"
 export { } from "@oazmi/kitchensink/crossenv"
 export { crc32 } from "@oazmi/kitchensink/cryptoman"

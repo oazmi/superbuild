@@ -3,7 +3,7 @@
  * @module
 */
 
-import { array_isEmpty, isNull, isRecord } from "../deps.ts"
+import { array_isEmpty, isNull, isRecord, object_keys } from "../deps.ts"
 import type {
 	EsbuildBuildOptions,
 	EsbuildOnEndCallback,
@@ -11,6 +11,7 @@ import type {
 	EsbuildPluginBuild,
 	EsbuildResolveOptions,
 	EsbuildResolveResult,
+	OnLoadArgs,
 	OnLoadCallback,
 	OnLoadOptions,
 	OnLoadResult,
@@ -22,7 +23,7 @@ import { concatArrays } from "../funcdefs.ts"
 import type { EsbuildNativeResolver, nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import { SuperBuild } from "./build.ts"
 import type { SuperBuildContext } from "./build_context.ts"
-import type { OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions } from "./typedefs.ts"
+import type { BundledInputFile, OnEmitArgs, OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions } from "./typedefs.ts"
 import { INNER_PLUGIN_BUILD } from "./typedefs.ts"
 
 
@@ -108,9 +109,12 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 
 	public onEnd(callback: EsbuildOnEndCallback): void {
 		// TODO: implement. this is currently defunct, as I think I'll first try implementing an "onEmit" mechanism for mutating the files that are to be written.
-		const new_callback: EsbuildOnEndCallback = (result) => { }
-		this.ctx.onEndHandlers.push({ callback })
-		return this.basePluginBuild.onEnd(callback)
+		const resolvedResourceRegistry = this.ctx.resolvedResourceRegistry
+		const new_callback: EsbuildOnEndCallback = (result) => {
+			return callback(result)
+		}
+		// the long-build plugin's `onEnd` calls each of the registered callbacks.
+		this.ctx.onEndHandlers.push({ callback: new_callback })
 	}
 
 	public onResolve(options: OnResolveOptions, callback: OnResolveCallback): void {
@@ -145,11 +149,16 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 
 	public onLoad(options: OnLoadOptions, callback: OnLoadCallback): void {
 		const
+			resolvedResourceRegistry = this.ctx.resolvedResourceRegistry,
 			onTransformHandlers = this.ctx.onTransformHandlers,
 			long_build_controller = this.ctx.longBuildController
-		const transform_interceptor_callback: OnLoadCallback = async (args) => {
+
+		const transform_interceptor_callback = async (args: OnLoadArgs): Promise<void | [
+			onload_results: OnLoadResult | null | undefined,
+			additional_info: Pick<BundledInputFile, "loader" | "transformLoader" | "emitData">
+		]> => {
 			const
-				{ namespace, path, suffix, with: withAttrs } = args,
+				{ namespace, path, suffix, with: with_attrs } = args,
 				onload_result = await callback(args)
 			if (isNull(onload_result?.contents)) { return }
 			// if any error occurs during the plugin's `onLoad` callback, we shall halt the build altogether by passing esbuild the error early.
@@ -167,9 +176,9 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 					&& (handler_ns ? (handler_ns === namespace) : true)
 					&& (handler_loader ? handler_loader === loader : true)
 				) {
-					const { imports = [], ...transform_result } = await handler.callback({
+					const { imports = [], emitData, ...transform_result } = await handler.callback({
 						contents: contents as (string | Uint8Array<ArrayBuffer>),
-						loader, namespace, path, pluginData, resolveDir, suffix, with: withAttrs,
+						loader, namespace, path, pluginData, resolveDir, suffix, with: with_attrs,
 					}) ?? {}
 					// if the transformation did not generate any result (i.e. void) or generated no `content`, then we shall move to testing the next transformation handler.
 					if (isNull(transform_result.contents)) { continue }
@@ -181,16 +190,33 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 					transform_result.pluginName ??= transformerPluginName
 					// NOTE: the plugin writer must ensure that their import paths are pre-resolved (not relative, nor contextually dependent).
 					if (imports.length > 0) { long_build_controller.steps.at(-1)!.pushImports(path, imports) }
-					return transform_result satisfies OnLoadResult
+					return [
+						transform_result satisfies OnLoadResult,
+						{ loader, transformLoader: transform_result.loader ?? "", emitData }
+					]
 				}
 			}
 
 			// at this point, we've already tried all available transformation handlers, but none produced a viable result,
 			// hence we shall return the original result directly to esbuild.
-			return onload_result as any
+			return [onload_result, { emitData: undefined, loader: loader, transformLoader: loader }]
 		}
+
+		const resource_registry_interceptor_callback: OnLoadCallback = async (args) => {
+			const [result, additional_info] = await transform_interceptor_callback(args) ?? []
+			if (!isNull(result)) {
+				const
+					{ path, namespace, suffix, with: with_attrs } = args,
+					{ emitData, loader, transformLoader } = additional_info!,
+					key = `${namespace}:${path}`,
+					contributing_emit_file: BundledInputFile = { path, namespace, suffix, loader, transformLoader, emitData }
+				resolvedResourceRegistry.set(key, contributing_emit_file)
+			}
+			return result
+		}
+
 		const long_build_interceptor_callback: OnLoadCallback = async (args) => {
-			const result = await transform_interceptor_callback(args)
+			const result = await resource_registry_interceptor_callback(args)
 			// every loaded result indicates that a file has gone out of circulation,
 			// and hence we must decrement the `remainingFilesCounter` of the long-build plugin.
 			if (!isNull(result)) { long_build_controller.decrementFilesCounter(args.path) }
