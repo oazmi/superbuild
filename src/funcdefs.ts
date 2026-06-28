@@ -3,7 +3,7 @@
  * @module
 */
 
-import { bind_array_push, console_log, crc32, date_now, dom_clearTimeout, dom_setTimeout, ensureStartDotSlash, isAbsolutePath, isArray, isString, math_max, object_entries, object_fromEntries, pathToPosixPath } from "./deps.ts"
+import { bind_array_push, console_log, crc32, date_now, dom_clearTimeout, dom_setTimeout, ensureRelativeDotSlash, isAbsolutePath, isArray, isString, math_max, object_entries, object_fromEntries, pathToPosixPath } from "./deps.ts"
 import type { EsbuildMetafile } from "./esbuild/strongtypes.ts"
 
 export const concatArrays = <T>(arr1?: Array<T>, arr2?: Array<T>): Array<T> | undefined => {
@@ -71,7 +71,7 @@ const normalize_esbuild_filepath = (path: string): string => {
 
 const normalize_local_filepath = (path: string): string => {
 	const is_abs_path = isAbsolutePath(path)
-	return pathToPosixPath(is_abs_path ? path : ensureStartDotSlash(path))
+	return pathToPosixPath(is_abs_path ? path : ensureRelativeDotSlash(path))
 }
 
 export const normalizeMetafile = (esbuild_metafile: EsbuildMetafile): EsbuildMetafile => {

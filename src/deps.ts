@@ -31,6 +31,22 @@ export const noop = (() => undefined)
 
 export const urlToString = (url: string | URL): string => { return isString(url) ? url : url.href }
 
+const
+	// posix directory path separator.
+	sep = "/",
+	// posix relative directory path navigator.
+	dotslash = "./",
+	// posix relative parent directory path navigator.
+	dotdotslash = "../",
+	string_starts_with = (str: string, starts_with: string): boolean => str.startsWith(starts_with),
+	string_ends_with = (str: string, ends_with: string): boolean => str.endsWith(ends_with)
+
+export const ensureRelativeDotSlash = (str: string): string => {
+	return (string_starts_with(str, dotslash) || string_starts_with(str, dotdotslash)) ? str
+		: string_starts_with(str, sep) ? "." + str
+			: dotslash + str
+}
+
 /** this utility type lets makes your typescript LSP auto-suggest literals defined in the input generic type `T`,
  * while also permitting arbitrary strings to be used.
  *

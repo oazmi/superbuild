@@ -3,7 +3,7 @@
  * @module
 */
 
-import { array_isEmpty, isNull, isRecord, object_keys } from "../deps.ts"
+import { array_isEmpty, isNull, isRecord, object_keys, pathToPosixPath } from "../deps.ts"
 import type {
 	EsbuildBuildOptions,
 	EsbuildOnEndCallback,
@@ -189,7 +189,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 					transform_result.watchFiles = concatArrays(transform_result.watchDirs, onload_result.watchFiles)
 					transform_result.pluginName ??= transformerPluginName
 					// NOTE: the plugin writer must ensure that their import paths are pre-resolved (not relative, nor contextually dependent).
-					if (imports.length > 0) { long_build_controller.steps.at(-1)!.pushImports(path, imports) }
+					if (imports.length > 0) { long_build_controller.steps.at(-1)!.pushImports(namespace === "file" ? pathToPosixPath(path) : path, imports) }
 					return [
 						transform_result satisfies OnLoadResult,
 						{ loader, transformLoader: transform_result.loader ?? "", emitData }
@@ -206,9 +206,11 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 			const [result, additional_info] = await transform_interceptor_callback(args) ?? []
 			if (!isNull(result)) {
 				const
-					{ path, namespace, suffix, with: with_attrs } = args,
+					{ path: _path, namespace: _namespace, suffix, with: with_attrs } = args,
 					{ emitData, loader, transformLoader } = additional_info!,
-					key = `${namespace}:${path}`,
+					path = pathToPosixPath(_path),
+					namespace = _namespace ? _namespace : "file",
+					key = namespace + ":" + path,
 					contributing_emit_file: BundledInputFile = { path, namespace, suffix, loader, transformLoader, emitData }
 				resolvedResourceRegistry.set(key, contributing_emit_file)
 			}
