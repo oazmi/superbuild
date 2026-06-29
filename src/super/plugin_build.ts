@@ -3,7 +3,7 @@
  * @module
 */
 
-import { array_isEmpty, isNull, isRecord, object_keys, pathToPosixPath } from "../deps.ts"
+import { array_isEmpty, isNull, isRecord, pathToPosixPath } from "../deps.ts"
 import type {
 	EsbuildBuildOptions,
 	EsbuildOnEndCallback,
@@ -23,7 +23,7 @@ import { concatArrays } from "../funcdefs.ts"
 import type { EsbuildNativeResolver, nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import { SuperBuild } from "./build.ts"
 import type { SuperBuildContext } from "./build_context.ts"
-import type { BundledInputFile, OnEmitArgs, OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions } from "./typedefs.ts"
+import type { BundledInputFile, OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions } from "./typedefs.ts"
 import { INNER_PLUGIN_BUILD } from "./typedefs.ts"
 
 
@@ -108,13 +108,8 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 	}
 
 	public onEnd(callback: EsbuildOnEndCallback): void {
-		// TODO: implement. this is currently defunct, as I think I'll first try implementing an "onEmit" mechanism for mutating the files that are to be written.
-		const resolvedResourceRegistry = this.ctx.resolvedResourceRegistry
-		const new_callback: EsbuildOnEndCallback = (result) => {
-			return callback(result)
-		}
 		// the long-build plugin's `onEnd` calls each of the registered callbacks.
-		this.ctx.onEndHandlers.push({ callback: new_callback })
+		this.ctx.onEndHandlers.push({ callback })
 	}
 
 	public onResolve(options: OnResolveOptions, callback: OnResolveCallback): void {

@@ -93,6 +93,10 @@ export class SuperBuildContext {
 			// stripping away the ".js" extension from the filename.
 			entryPoints[long_build_filename] = parseFilepathInfo(long_build_filename).basename
 		}
+		// TODO: right now, we forcefully enable `metafile` and disable `write`, but in the future,
+		// we should create a sub-build where these options are enabled, but the top-level build will mock/respect the original intention.
+		options.metafile = true
+		options.write = false
 		return options
 	}
 }
