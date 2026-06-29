@@ -4,7 +4,7 @@
 */
 
 import type { AutoSuggestOrString, MaybePromiseOrNull, Optional } from "../deps.ts"
-import type { EsbuildLoaderType, EsbuildPartialMessage, OnLoadResult } from "../esbuild/strongtypes.ts"
+import type { EsbuildLoaderType, EsbuildOnEndResult, EsbuildPartialMessage, OnLoadResult } from "../esbuild/strongtypes.ts"
 import type { EsbuildNativeResolver, nativeReplicaPluginSetup } from "../plugins/native_replica.ts"
 import type { SuperPluginBuild } from "./plugin_build.ts"
 
@@ -250,7 +250,7 @@ export interface OnEmitArgs {
 	contents: Uint8Array<ArrayBuffer>
 }
 
-export interface OnEmitResult {
+export interface OnEmitResult extends EsbuildOnEndResult {
 	/** provide an alternate path to place this resource. if a relative path is provided (which is what is recommended),
 	 * then this file will be placed relative to the output directory specified in the initial build options.
 	*/

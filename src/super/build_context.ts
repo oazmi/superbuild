@@ -8,6 +8,7 @@
 
 import { isArray, parseFilepathInfo } from "../deps.ts"
 import type { EsbuildBuildOptions, EsbuildOnEndCallback } from "../esbuild/strongtypes.ts"
+import { emissionsDriverPlugin } from "../plugins/emissions_driver.ts"
 import { LongBuildController, longBuildPlugin } from "../plugins/long_build.ts"
 import { nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import { SuperPlugin } from "./plugin.ts"
@@ -26,6 +27,7 @@ export interface OnEmitHandler extends OnEmitOptions {
 }
 
 export interface OnEndHandler {
+	pluginName: string
 	callback: EsbuildOnEndCallback
 }
 
@@ -79,9 +81,12 @@ export class SuperBuildContext {
 		// insert the "native loader" at the last, so that esbuild never gets to load natively
 		// (which would bypass our `onLoad` overload, making all `onTransform` hooks unreachable).
 		options.plugins.push(nativeReplicaPlugin())
+		// insert the "emissions driver" as the second plugin,
+		// so that it can drive all `onEmit` and `onEnd` callback hooks after the build has concluded.
+		options.plugins.unshift(emissionsDriverPlugin({ ctx: this }))
 		// insert a longbuild plugin at the very beginning so that it can intercept all incoming files.
 		const controller = this.longBuildController
-		options.plugins.unshift(longBuildPlugin({ controller, buildContext: this }))
+		options.plugins.unshift(longBuildPlugin({ controller, ctx: this }))
 		options.plugins = options.plugins.map((plugin) => (new SuperPlugin(this, plugin)))
 		// we also insert the unique long build entry point to the options.
 		const

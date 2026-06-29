@@ -7,13 +7,13 @@
  * @module
 */
 
-import { array_isEmpty, ensureEndSlash, escapeLiteralStringForRegex, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isNull, isString, json_stringify, object_entries, parseFilepathInfo, pathToPosixPath, promise_all, promiseOutside, resolveAsUrl, resolvePathFactory, textEncoder } from "../deps.ts"
+import { array_isEmpty, escapeLiteralStringForRegex, json_stringify, parseFilepathInfo, pathToPosixPath, promiseOutside } from "../deps.ts"
 import type { EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs, OnResolveArgs, OnResolveResult } from "../esbuild/strongtypes.ts"
-import { cancelableDelayedPromiseResolver, generateUuid, normalizeMetafile } from "../funcdefs.ts"
+import { cancelableDelayedPromiseResolver, generateUuid } from "../funcdefs.ts"
 import type { SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
-import type { BundledInputFile, ImportEntity } from "../super/typedefs.ts"
-import { EMIT_EMPTY, INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
+import type { ImportEntity } from "../super/typedefs.ts"
+import { INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
 
 
 const enum LONGBUILD {
@@ -268,7 +268,7 @@ ${all_imports_js_str}
 
 export interface LongBuildPluginSetupConfig {
 	controller: LongBuildController
-	buildContext: SuperBuildContext
+	ctx: SuperBuildContext
 }
 
 /** this plugin that enables the inclusion of additional imports dynamically, as esbuild is transforming the loaded content.
@@ -282,7 +282,7 @@ export interface LongBuildPluginSetupConfig {
 */
 export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): EsbuildPluginSetup => {
 	const
-		ctx = config.buildContext,
+		ctx = config.ctx,
 		controller = config.controller,
 		longbuild_base_filename = controller.baseFilename,
 		longbuild_deps_filename = controller.depsFilename,
@@ -292,10 +292,6 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 		const
 			filter = RegExp(escapeLiteralStringForRegex(longbuild_base_filename) + "$"),
 			deps_file_filter = RegExp(escapeLiteralStringForRegex(longbuild_deps_filename) + "$"),
-			abs_working_dir = pathToPosixPath(build.initialOptions.absWorkingDir ?? "./"),
-			runtime_cwd = ensureEndSlash(getRuntimeCwd(identifyCurrentRuntime())),
-			cwd = fileUrlToLocalPath(resolveAsUrl(abs_working_dir, runtime_cwd))!,
-			resolve_path = resolvePathFactory(cwd),
 			base_plugin_build = INNER_PLUGIN_BUILD in build
 				? build[INNER_PLUGIN_BUILD]
 				: build
@@ -329,116 +325,16 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 			return { contents, loader: "ts", resolveDir: "./", warnings }
 		})
 
+		// TODO: the very first action that needs to take place even before the `emissionsDriverPlugin` starts performing `onEmit` callbacks,
+		// is to parse the long-build's file contents and then store it to the `SuperBuildContext`.
+		// either that, or we can also modify the `result.outputFiles` over here to push the parsed `imports` into them.
+		// (although esbuild's `imports` format differs from mine, so it will cause issues, so it might be best to leave it up to the emissions driver to take care of it.)
 		base_plugin_build.onEnd(async (result) => {
-			const
-				output_files = result.outputFiles!.map((file, index) => {
-					return {
-						index,
-						path: resolve_path(file.path),
-						hash: file.hash,
-						contents: file.contents,
-					}
-				}),
-				namespaced_path_to_abs_namespaced_path = (namespaced_path: string): string => {
-					if (!namespaced_path.startsWith("file:")) { return namespaced_path }
-					const abs_path = resolve_path(namespaced_path.slice(5))
-					return "file:" + abs_path
-				},
-				metafile = normalizeMetafile(result.metafile!),
-				abs_outputs = object_entries(metafile.outputs).map(([output_path, props]): [
-					output_path: string,
-					properties: { entryPoint?: string, inputs: string[], imports: string[] },
-				] => {
-					const
-						abs_output_path = resolve_path(output_path),
-						abs_entrypoint = props.entryPoint ? namespaced_path_to_abs_namespaced_path(props.entryPoint) : undefined,
-						abs_input_paths = object_entries(props.inputs).map(([input_path, _props]) => namespaced_path_to_abs_namespaced_path(input_path)),
-						abs_imports = props.imports.map(({ path, kind }) => resolve_path(path))
-					return [abs_output_path, {
-						entryPoint: abs_entrypoint,
-						inputs: abs_input_paths,
-						imports: abs_imports,
-					}]
-				})
-
-			// handle all registered `onEmit` hooks.
-			const
-				onEmitHandlers = ctx.onEmitHandlers,
-				resolvedResourceRegistry = ctx.resolvedResourceRegistry,
-				warnings: EsbuildPartialMessage[] = []
-			const on_emit_promises = abs_outputs.map(async ([output_path, props]) => {
-				HandlerLoop: for (const handler of onEmitHandlers) {
-					const { pluginName, filter, inputs: input_filters, callback } = handler
-					// test the output file name filter first.
-					if (!filter.test(output_path)) { continue HandlerLoop }
-
-					// acquire the list of all bundled files which were included in the current output resource, that can be traced back from the resource registry.
-					const bundled_files: BundledInputFile[] = []
-					for (const input_file of props.inputs) {
-						const bundled_file = resolvedResourceRegistry.get(input_file)
-						if (bundled_file) { bundled_files.push(bundled_file) }
-						else { warnings.push({ text: `[onEmitHandler]: resource registry never encountered the resource: "${input_file}"` }) }
-					}
-
-					// now we check if all input filters are satisfied by at least one input file each time.
-					for (const input_filter of (input_filters ?? [])) {
-						const { filter, namespace, loader, transformLoader } = input_filter
-						const at_least_one_file_satisfies_conditions = bundled_files.map((bundled_file) => {
-							return filter.test(bundled_file.path)
-								&& (namespace ? namespace === bundled_file.namespace : true)
-								&& (loader ? loader === bundled_file.loader : true)
-								&& (transformLoader ? transformLoader === bundled_file.transformLoader : true)
-						}).includes(true)
-						if (!at_least_one_file_satisfies_conditions) { continue HandlerLoop }
-					}
-
-					// if we've made it to here, then we may pass this output resource to the callback hook.
-					const
-						// unfortunately, I don't know a better way to handle letter-case inconsistency, other than making it entirely case-insensitive.
-						lower_output_path = output_path.toLowerCase(),
-						matched_output_file = output_files.find((file) => { return file.path.toLowerCase() === lower_output_path })
-					if (!matched_output_file) {
-						warnings.push({ text: `[onEmitHandler]: could not find resource "${output_path}" in output files.` })
-						continue HandlerLoop
-					}
-					const result = await callback({
-						outputPath: matched_output_file.path,
-						contents: matched_output_file.contents as Uint8Array<ArrayBuffer>,
-						inputs: bundled_files,
-						imports: [], // TODO
-					})
-
-					// updating the emitted file `path` and `contents` from the `result`.
-					if (isNull(result)) { continue }
-					if (result.contents) {
-						if (result.contents === EMIT_EMPTY) { }// TODO: implement output file deletion.
-						else {
-							matched_output_file.contents = isString(result.contents)
-								? textEncoder.encode(result.contents)
-								: result.contents
-						}
-					}
-					if (result.path) { matched_output_file.path = result.path }
-					if (result.updateDependents) {
-						// TODO: handle this option.
-					}
-				}
-			})
-			await promise_all(on_emit_promises)
-
-			// handle all registered `onEnd` hooks.
-			const on_end_promises = ctx.onEndHandlers.map((handler) => {
-				return handler.callback(result)
-			})
-			await promise_all(on_end_promises)
-
 			// const longbuild_files = result.outputFiles?.filter((file) => { return file.path.endsWith(longbuild_base_filename) }) ?? []
 			// console.assert(longbuild_files.length === 1)
 			// for (const longbuild_file of longbuild_files) {
 			// 	console.log(await controller.parseLongBuildFileContent(longbuild_file.text))
 			// }
-
-			return { warnings }
 		})
 	}
 }

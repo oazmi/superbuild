@@ -109,7 +109,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 
 	public onEnd(callback: EsbuildOnEndCallback): void {
 		// the long-build plugin's `onEnd` calls each of the registered callbacks.
-		this.ctx.onEndHandlers.push({ callback })
+		this.ctx.onEndHandlers.push({ pluginName: this.pluginName, callback })
 	}
 
 	public onResolve(options: OnResolveOptions, callback: OnResolveCallback): void {
