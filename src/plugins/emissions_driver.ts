@@ -13,7 +13,7 @@ import type { EsbuildOutputFile } from "../esbuild/typedefs.ts"
 import { concatArrays, normalizeMetafile } from "../funcdefs.ts"
 import type { OnEmitHandler, SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
-import type { BundledInputFile, ImportEntity } from "../super/typedefs.ts"
+import type { BundledInputFile, ImportedEntity } from "../super/typedefs.ts"
 import { EMIT_EMPTY, INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
 
 
@@ -26,6 +26,16 @@ export interface EmissionsDriverPluginSetupConfig {
  *
  * > [!note]
  * > this plugin should generally go in second place, after the long-build plugin, and before all other user plugins.
+ *
+ * > Hello Maddam Siiir, you're vehicle has failed its emissions inspection.
+ * > you must subscribe to UK's £19/day _unclean vehicle_ program in order to use your vehicle,
+ * > so that we can offset your unclean carbon emissions and keep our planet clean. thank you for understanding.
+ * >
+ * > _meanwhile, at the hall of jeffery, circa 2013_
+ * >
+ * > _Larry McOracle_: jeffery, my second best friend, how many data centers did our supreme minister say he would like on 300 acre patches of american soil?
+ * >
+ * > _Jeffy McEpstien_: he says yes. and also get peter griffin, I mean thiel, onboard for a new mass surveillance initiative.
 */
 export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupConfig): EsbuildPluginSetup => {
 	const ctx = config.ctx
@@ -47,6 +57,7 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 		// try to match an `onEmit` hook's filters on a single output file resource (`abs_output_entry`).
 		const matchOnEmitFilter = (
 			handler: OnEmitHandler,
+			metafile_abs_outputs: Map<string, FormattedMetafileOutputProps>,
 			output_files: Array<FormattedOutputFile>,
 			abs_output_entry: FormattedMetafileOutputEntry,
 		): MatchOnEmitFilterResult | Require<Partial<MatchOnEmitFilterResult>, "warnings"> | undefined => {
@@ -86,10 +97,31 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 				warnings.push({ text: `[emissionsDriverPlugin-onEmitHandler]: could not find resource "${output_path}" in output files.` })
 				return { warnings }
 			}
+
+			const imports: ImportedEntity[] = props.imports.map((outputPath): ImportedEntity => {
+				// finding the original namespaced resolved path of the file that resulted in the `outputPath` file.
+				// since there could be multiple `inputs` that resulted in the creation of the file at `outputPath`,
+				// we set the `key` to be an array of all `inputs`, while leaving out the `path` to be `undefined`
+				// (even though it would make sense to set `path = inputs[0]` if there was only a single contributing input,
+				// but for consistency of the format, I'll be using array `key`s exclusively.)
+				const output_path_inputs = metafile_abs_outputs.get(outputPath)?.inputs
+				if (!output_path_inputs || output_path_inputs.length <= 0) {
+					// TODO: under this scenario, I can technically still construct a `key` if I were to inspect the `imports` of the `outputPath`,
+					// and then trace which of _its_ inputs correspond to this `outputPath`,
+					// but that's just too convoluted and it'll still require a bunch of guessing, at which point it will not be worth the effort.
+					warnings.push({
+						text: `[emissionsDriverPlugin-onEmitHandler-imports_tracing]: `
+							+ `expected import file "${outputPath}" to be made out of at least one input resource. `
+							+ `but worry not, as this could happen when the emitted file is just a re-exporting chunk file.`
+					})
+				}
+				return { outputPath, key: output_path_inputs }
+			})
+
 			return {
 				match: matched_output_file,
 				inputs: bundled_files,
-				imports: [], // TODO
+				imports: imports, // TODO: add imports that were traced back from the long build.
 				warnings,
 			}
 		}
@@ -99,7 +131,8 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 			const
 				output_files = format_output_files(resolve_path, result.outputFiles!),
 				metafile = normalizeMetafile(result.metafile!),
-				abs_outputs = format_metafile_outputs(resolve_path, metafile.outputs)
+				abs_outputs = format_metafile_outputs(resolve_path, metafile.outputs),
+				metafile_abs_outputs = new Map(abs_outputs)
 
 			// TODO: in the future, the output files must be ordered with respect to their topological dependencies.
 			// and then, to make it faster, we should also allow parallel output file handling when two or more output files are independent of one another.
@@ -108,7 +141,7 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 				// attempt at matching the output file with all available `onEmit` hooks' filters,
 				// and stopping at the first match that yields a viable result.
 				for (const handler of onEmitHandlers) {
-					const match_result = matchOnEmitFilter(handler, output_files, abs_output_entry)
+					const match_result = matchOnEmitFilter(handler, metafile_abs_outputs, output_files, abs_output_entry)
 					if (isNull(match_result?.match)) { continue }
 					const { match: matched_file, inputs, imports, warnings } = match_result
 					const on_emit_result = await handler.callback({
@@ -192,7 +225,7 @@ export const emissionsDriverPlugin = (config: EmissionsDriverPluginSetupConfig):
 interface MatchOnEmitFilterResult {
 	match: FormattedOutputFile
 	inputs: BundledInputFile[]
-	imports: ImportEntity[]
+	imports: ImportedEntity[]
 	warnings: EsbuildPartialMessage[]
 }
 
@@ -211,13 +244,19 @@ const namespaced_path_to_abs_namespaced_path_factory = (
 }
 
 interface FormattedMetafileOutputProps {
-	entryPoint?: string // namespaced and absolute file path.
-	inputs: string[]    // namespaced and absolute file paths.
-	imports: string[]   // namespaced and absolute file paths.
+	/** namespaced and absolute resolved file path of entry-point that is directly the result of this output file. */
+	entryPoint?: string
+
+	/** namespaced and absolute resolved file paths of input resources that contributed (i.e. were bundled) into this output file. */
+	inputs: string[]
+
+	/** absolute file paths to other output files that need to be imported by this output file. */
+	imports: string[]
 }
 
 type FormattedMetafileOutputEntry = [
-	output_path: string, // not namespaced, but an absolute file path.
+	/** not namespaced, but an absolute file path. */
+	output_path: string,
 	properties: FormattedMetafileOutputProps,
 ]
 
@@ -236,6 +275,7 @@ const format_metafile_outputs = (
 			abs_output_path = resolve_path_fn(output_path),
 			abs_entrypoint = props.entryPoint ? namespaced_path_to_abs_namespaced_path(props.entryPoint) : undefined,
 			abs_input_paths = object_entries(props.inputs).map(([input_path, _props]) => namespaced_path_to_abs_namespaced_path(input_path)),
+			// the import paths here are relative to cwd, and not relative to `abs_output_path`.
 			abs_imports = props.imports.map(({ path, kind }) => resolve_path_fn(path))
 		return [abs_output_path, {
 			entryPoint: abs_entrypoint,

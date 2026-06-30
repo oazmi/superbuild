@@ -279,6 +279,19 @@ export interface LongBuildPluginSetupConfig {
  * > [!note]
  * > this plugin should be placed at the very beginning, as it needs to inspect all incoming path-resolution requests,
  * > in order to track if any unprocessed files still remain while bundling.
+ *
+ * > _Mr. Feast_: Hello everyone, it's your host jimmy neutrino,
+ * > and today we'll be trafficking 100 foreign slaves to compete against one another in building the longest pyramid.
+ * > whichever slave manages to build the tallest pyramid at the 100 hour mark will earn his freedom and a also a free bugatti**!
+ * >
+ * > _Lapdog #1_: the rules are simple: if a slave falls asleeps, or moves out of the red circle,
+ * > they'll get disqualified immediately and be deported back to their original owner.
+ * >
+ * > _Lapdog #2_: look at this wonderful art piece that I commissioned from epstien himself!
+ * > hey! stop criticizing me! I'm doing this for my son! also, I identify as they/them, so you can't criticize me now.
+ * >
+ * > **no auto insurance will be supplied, and state sales tax will be the responsibility of the winner.
+ * > failing to register your prize within 6 hours of winning will indicate that you wish to forfeit from owning it.
 */
 export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): EsbuildPluginSetup => {
 	const

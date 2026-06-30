@@ -92,6 +92,8 @@ export const normalizeMetafile = (esbuild_metafile: EsbuildMetafile): EsbuildMet
 		// path name of the output file (including the path to the `outdir` relative to the `cwd` or `absWorkingDir`).
 		pathname = normalize_local_filepath(pathname)
 		// list of linked output files that are referenced by this resource (but not bundled into it).
+		// even though the import paths are relative, they are relative to the `cwd` or `absWorkingDir`,
+		// and not relative to the `pathname`.
 		props.imports = props.imports.map((props) => {
 			props.path = normalize_local_filepath(props.path)
 			return props

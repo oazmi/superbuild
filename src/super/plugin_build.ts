@@ -20,6 +20,7 @@ import type {
 	OnResolveOptions,
 } from "../esbuild/strongtypes.ts"
 import { concatArrays } from "../funcdefs.ts"
+import type { emissionsDriverPlugin } from "../plugins/emissions_driver.ts"
 import type { EsbuildNativeResolver, nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import { SuperBuild } from "./build.ts"
 import type { SuperBuildContext } from "./build_context.ts"
@@ -108,7 +109,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 	}
 
 	public onEnd(callback: EsbuildOnEndCallback): void {
-		// the long-build plugin's `onEnd` calls each of the registered callbacks.
+		/** the {@link emissionsDriverPlugin | "emissions driver" plugin's} `onEnd` stage performs calling each of the registered callbacks. */
 		this.ctx.onEndHandlers.push({ pluginName: this.pluginName, callback })
 	}
 

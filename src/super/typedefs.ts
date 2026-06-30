@@ -128,6 +128,7 @@ export interface OnTransformResult {
 */
 export type OnTransformCallback = (args: OnTransformArgs) => MaybePromiseOrNull<OnTransformResult>
 
+/** specify an entity/file that should be imported for a given loaded entity (during the transformation stage). */
 export interface ImportEntity<K = any> {
 	/** include a unique key that you can use to trace back the imported entity,
 	 * because the `path` of the import in the bundled output will differ, whereas this key will remain the same.
@@ -159,6 +160,27 @@ export interface ImportEntity<K = any> {
 	// pluginData?: any // specify any custom plugin data that should be used.
 	// kind: EsbuildOutputsImportKind // for now, it can only be a regular js dynamic import, since that is what the long-build performs.
 	// external?: boolean
+}
+
+/** a description of an entity that is imported by an output file (post-build, during the emission stage).
+ *
+ * TODO: I don't currently include the original `with` import attribute in this description, but should I? It'll be defunct anyway.
+*/
+export interface ImportedEntity<K = any> extends Pick<NonNullable<ImportEntity<K>>, "key" | "with"> {
+	/** the **absolute** output path of the resource/entity that is being imported.
+	 * to convert it to a relative path with respect to the entity that imports this resource,
+	 * use the `relativePath` function from my `jsr:@oazmi/kitchensink/pathman` or `npm:@oazmi/kitchensink/pathman` libraries.
+	*/
+	outputPath: string
+
+	/** the original **resolved** path of the resource that was provide during the transformation stage (i.e. {@link ImportEntity.path}).
+	 *
+	 * this value is `undefined` for resource links that were performed by esbuild itself,
+	 * since it will be quite convoluted for me to trace back _which_ output imported file corresponds to _which_ resource during the loading stage.
+	 *
+	 * however, it is always defined for the case where the user provides {@link ImportEntity}s during the transformation stage.
+	*/
+	path?: string
 }
 
 /** a single input file filteration rule used in {@link OnEmitOptions}. */
@@ -244,7 +266,7 @@ export interface OnEmitArgs {
 	 * these, however, are not currently _bundled_ into the contents of your resource;
 	 * they're still external resources that your transformed file will need to reference (re-incorporate) in order to import during runtime.
 	*/
-	imports: Array<Optional<ImportEntity, "key">>
+	imports: Array<ImportedEntity>
 
 	/** the transformed and/or bundled content that may need to have the linked {@link imports} re-incorporated into it. */
 	contents: Uint8Array<ArrayBuffer>
