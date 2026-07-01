@@ -7,7 +7,7 @@
  * @module
 */
 
-import { ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isNull, isString, object_entries, pathToPosixPath, promise_all, type Require, resolveAsUrl, resolvePathFactory, textEncoder } from "../deps.ts"
+import { ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isNull, isString, object_entries, pathToPosixPath, promise_all, type Require, resolveAsUrl, resolvePathFactory, textDecoder, textEncoder } from "../deps.ts"
 import type { EsbuildMetafile, EsbuildOnEndCallback, EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup } from "../esbuild/strongtypes.ts"
 import type { EsbuildOutputFile } from "../esbuild/typedefs.ts"
 import { concatArrays, normalizeMetafile } from "../funcdefs.ts"
@@ -39,7 +39,6 @@ export interface EmissionsDriverPluginSetupConfig {
 */
 export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupConfig): EsbuildPluginSetup => {
 	const ctx = config.ctx
-
 	return (build: EsbuildPluginBuild | SuperPluginBuild) => {
 		const
 			abs_working_dir = pathToPosixPath(build.initialOptions.absWorkingDir ?? "./"),
@@ -51,14 +50,87 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 				: build
 
 		const
+			longBuildController = ctx.longBuildController,
 			onEmitHandlers = ctx.onEmitHandlers,
 			resolvedResourceRegistry = ctx.resolvedResourceRegistry
+
+		const parseLongBuildImportedEntities = async (
+			metafile_abs_outputs: Map<string, FormattedMetafileOutputProps>,
+			output_files: Array<FormattedOutputFile>,
+		): Promise<{
+			importedEntities: Map<string, ImportedEntity[]>,
+			warnings: EsbuildPartialMessage[],
+			errors: EsbuildPartialMessage[],
+		}> => {
+			const
+				warnings: EsbuildPartialMessage[] = [],
+				errors: EsbuildPartialMessage[] = [],
+				longbuild_base_filename = longBuildController.baseFilename,
+				longbuild_files = output_files.filter((file) => { return file.path.endsWith(longbuild_base_filename) }) ?? []
+			if (longbuild_files.length !== 1) {
+				errors.push({ text: `[parseLongBuildImportedEntities]: expected there to be only a single long-build file after bundling, instead found: ${longbuild_files.length} files.` })
+				return { importedEntities: new Map(), warnings, errors }
+			}
+			const
+				longbuild_file = longbuild_files[0],
+				longbuild_path = resolve_path(longbuild_file.path),
+				longbuild_contents = textDecoder.decode(longbuild_file.contents),
+				import_entities = await longBuildController.parseLongBuildFileContent(longbuild_contents),
+				metafile_abs_outputs_entries = [...metafile_abs_outputs.entries()].map((entry): typeof entry => {
+					// turning all input source `resolved_path`s to lower case for "best effort" case-insensitive matching.
+					const
+						[output_path, props] = entry,
+						props_clone = { ...props }
+					props_clone.inputs = props.inputs.map((resolved_path) => resolved_path.toLowerCase())
+					return [output_path, props_clone]
+				}),
+				imported_entities = [...import_entities.entries()].map((
+					[importer_resolved_path, entities_to_import]
+				): ([importer_output_path: string, file_imports: Array<ImportedEntity>] | undefined) => {
+					// "best effort" attempt to match importer's resolved path to an output file's input source, while keeping it case-insensitive
+					// (which could lead to issue if multiple resources with the same name but different casing exist, but that's codebase issue, not mine).
+					importer_resolved_path = importer_resolved_path.toLowerCase()
+					const matching_output_file_entry = metafile_abs_outputs_entries.find(([output_path, props]) => {
+						return props.inputs.includes(importer_resolved_path)
+					})
+					if (!matching_output_file_entry) {
+						warnings.push({ text: `[parseLongBuildImportedEntities]: failed to find an output file that uses the input file: "${importer_resolved_path}".` })
+						return
+					}
+
+					const
+						[importer_output_path, importer_output_props] = matching_output_file_entry,
+						number_of_sources = importer_output_props.inputs.length
+					if (number_of_sources > 1) {
+						warnings.push({
+							text: `[parseLongBuildImportedEntities]: expected the output file "${importer_output_path}" to be composed of just a single file, `
+								+ `but instead found it to be comprised of ${number_of_sources} source: [${importer_output_props.inputs.join(",\n")}]`
+						})
+					}
+
+					const file_imports: ImportedEntity[] = entities_to_import.map((entity) => {
+						// note: remember, `entity.path` is relative to the longbuild file, and not the `importer_output_path`.
+						return {
+							outputPath: resolve_path(longbuild_path, entity.path),
+							key: entity.key,
+							with: entity.with,
+							// path: "TODO" // TODO: honestly, backtracking the namespaced resolved path would be too much effort,
+							// and it'll have the same "best guess" issue that already plagues this function, so I might remove the `path` field altogether.
+						}
+					})
+
+					return [importer_output_path, file_imports]
+				}).filter((imported_entity) => !isNull(imported_entity))
+
+			return { importedEntities: new Map(imported_entities), warnings, errors }
+		}
 
 		// try to match an `onEmit` hook's filters on a single output file resource (`abs_output_entry`).
 		const matchOnEmitFilter = (
 			handler: OnEmitHandler,
 			metafile_abs_outputs: Map<string, FormattedMetafileOutputProps>,
 			output_files: Array<FormattedOutputFile>,
+			all_imported_entities_map: Awaited<ReturnType<typeof parseLongBuildImportedEntities>>["importedEntities"],
 			abs_output_entry: FormattedMetafileOutputEntry,
 		): MatchOnEmitFilterResult | Require<Partial<MatchOnEmitFilterResult>, "warnings"> | undefined => {
 			const
@@ -98,7 +170,8 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 				return { warnings }
 			}
 
-			const imports: ImportedEntity[] = props.imports.map((outputPath): ImportedEntity => {
+			// the runtime-based imports in the output file that esbuild itself generated during bundling.
+			const esbuild_imports: ImportedEntity[] = props.imports.map((outputPath): ImportedEntity => {
 				// finding the original namespaced resolved path of the file that resulted in the `outputPath` file.
 				// since there could be multiple `inputs` that resulted in the creation of the file at `outputPath`,
 				// we set the `key` to be an array of all `inputs`, while leaving out the `path` to be `undefined`
@@ -118,10 +191,14 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 				return { outputPath, key: output_path_inputs }
 			})
 
+			// the runtime-based imports in the output file made by the user (i.e. plugins) during the transformation stage.
+			// these imports are parsed from the long-build js file, and then mapped back to their `input` namespaced source paths.
+			const user_imports: ImportedEntity[] = all_imported_entities_map.get(output_path) ?? []
+
 			return {
 				match: matched_output_file,
 				inputs: bundled_files,
-				imports: imports, // TODO: add imports that were traced back from the long build.
+				imports: [...esbuild_imports, ...user_imports],
 				warnings,
 			}
 		}
@@ -132,7 +209,12 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 				output_files = format_output_files(resolve_path, result.outputFiles!),
 				metafile = normalizeMetafile(result.metafile!),
 				abs_outputs = format_metafile_outputs(resolve_path, metafile.outputs),
-				metafile_abs_outputs = new Map(abs_outputs)
+				metafile_abs_outputs = new Map(abs_outputs),
+				{
+					importedEntities: all_imported_entities_map,
+					warnings: warnings,
+					errors: errors,
+				} = await parseLongBuildImportedEntities(metafile_abs_outputs, output_files)
 
 			// TODO: in the future, the output files must be ordered with respect to their topological dependencies.
 			// and then, to make it faster, we should also allow parallel output file handling when two or more output files are independent of one another.
@@ -141,7 +223,7 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 				// attempt at matching the output file with all available `onEmit` hooks' filters,
 				// and stopping at the first match that yields a viable result.
 				for (const handler of onEmitHandlers) {
-					const match_result = matchOnEmitFilter(handler, metafile_abs_outputs, output_files, abs_output_entry)
+					const match_result = matchOnEmitFilter(handler, metafile_abs_outputs, output_files, all_imported_entities_map, abs_output_entry)
 					if (isNull(match_result?.match)) { continue }
 					const { match: matched_file, inputs, imports, warnings } = match_result
 					const on_emit_result = await handler.callback({
@@ -175,11 +257,10 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 				}
 			})
 
-			const warnings: Array<EsbuildPartialMessage> = []
 			for (const value of await promise_all(on_emit_promises)) {
 				if (value?.warnings) { warnings.push(...value.warnings) }
 			}
-			return { warnings }
+			return { warnings, errors }
 		}
 
 		// handle all registered `onEnd` hooks.

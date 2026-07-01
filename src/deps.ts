@@ -47,7 +47,9 @@ export const ensureRelativeDotSlash = (str: string): string => {
 			: dotslash + str
 }
 
-export const textEncoder = new TextEncoder()
+export const
+	textEncoder = new TextEncoder(),
+	textDecoder = new TextDecoder()
 
 /** this utility type lets makes your typescript LSP auto-suggest literals defined in the input generic type `T`,
  * while also permitting arbitrary strings to be used.

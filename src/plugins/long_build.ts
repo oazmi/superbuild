@@ -218,6 +218,9 @@ export class LongBuildStep {
 		this.promise = promise
 	}
 
+	/** register imports performed by some resource `importer_key`.
+	 * the `importer_key` should be formatted as `${namespace}:${resolved_path}` of the resource performing the `imports`.
+	*/
 	public pushImports(importer_key: string, imports: ImportEntity[]) {
 		this.resourceImports.set(importer_key, imports)
 	}
@@ -268,7 +271,6 @@ ${all_imports_js_str}
 
 export interface LongBuildPluginSetupConfig {
 	controller: LongBuildController
-	ctx: SuperBuildContext
 }
 
 /** this plugin that enables the inclusion of additional imports dynamically, as esbuild is transforming the loaded content.
@@ -295,7 +297,6 @@ export interface LongBuildPluginSetupConfig {
 */
 export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): EsbuildPluginSetup => {
 	const
-		ctx = config.ctx,
 		controller = config.controller,
 		longbuild_base_filename = controller.baseFilename,
 		longbuild_deps_filename = controller.depsFilename,

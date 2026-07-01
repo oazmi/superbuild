@@ -185,7 +185,12 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 					transform_result.watchFiles = concatArrays(transform_result.watchDirs, onload_result.watchFiles)
 					transform_result.pluginName ??= transformerPluginName
 					// NOTE: the plugin writer must ensure that their import paths are pre-resolved (not relative, nor contextually dependent).
-					if (imports.length > 0) { long_build_controller.steps.at(-1)!.pushImports(namespace === "file" ? pathToPosixPath(path) : path, imports) }
+					if (imports.length > 0) {
+						const
+							importer_path = namespace === "file" ? pathToPosixPath(path) : path,
+							importer_key = namespace + ":" + importer_path
+						long_build_controller.steps.at(-1)!.pushImports(importer_key, imports)
+					}
 					return [
 						transform_result satisfies OnLoadResult,
 						{ loader, transformLoader: transform_result.loader ?? "", emitData }
