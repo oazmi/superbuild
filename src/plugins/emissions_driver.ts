@@ -66,7 +66,19 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 				warnings: EsbuildPartialMessage[] = [],
 				errors: EsbuildPartialMessage[] = [],
 				longbuild_base_filename = longBuildController.baseFilename,
-				longbuild_files = output_files.filter((file) => { return file.path.endsWith(longbuild_base_filename) }) ?? []
+				// below, we could have simply done `longbuild_files = output_files.filter((file) => { return file.path.endsWith(longbuild_base_filename) })`,
+				// however, it will only work when the user does not specify `BuildOptions["entryNames"]`.
+				// but if they do, then `file.path` will be unlikely to end with `longbuild_base_filename`,
+				// rendering the method above useless, and hence is why we use the surefire `inputs` tracing method below.
+				longbuild_files = [...metafile_abs_outputs.entries()].filter(([output_path, props]) => {
+					// filter out all output files that have a "long build js file" as one of its input source files.
+					return props.inputs.some((source_resolved_path) => source_resolved_path.endsWith(longbuild_base_filename))
+				}).map(([output_path, props]) => {
+					// find the output file entity corresponding to the output file paths that comprise of at least one "long build js file".
+					return output_files.find((output_file) => output_file.path === output_path)
+				}).filter((file) => {
+					return !isNull(file)
+				})
 			if (longbuild_files.length !== 1) {
 				errors.push({ text: `[parseLongBuildImportedEntities]: expected there to be only a single long-build file after bundling, instead found: ${longbuild_files.length} files.` })
 				return { importedEntities: new Map(), warnings, errors }
