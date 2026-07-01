@@ -3,7 +3,7 @@
  * @module
 */
 
-import type { AutoSuggestOrString, MaybePromiseOrNull, Optional } from "../deps.ts"
+import type { AutoSuggestOrString, MaybePromiseOrNull } from "../deps.ts"
 import type { EsbuildLoaderType, EsbuildOnEndResult, EsbuildPartialMessage, OnLoadResult } from "../esbuild/strongtypes.ts"
 import type { EsbuildNativeResolver, nativeReplicaPluginSetup } from "../plugins/native_replica.ts"
 import type { SuperPluginBuild } from "./plugin_build.ts"
@@ -164,6 +164,11 @@ export interface ImportEntity<K = any> {
 
 /** a description of an entity that is imported by an output file (post-build, during the emission stage).
  *
+ * - for user-specified `imports` performed in the transformation stage ({@link OnTransformResult}), the {@link key} will be supplied by the user,
+ *   and it will be up to the user to trace back the original linked resource that was being referenced.
+ * - for imports performed by esbuild (such as js and css imports), the {@link key} will be an array of namespaced resolved paths
+ *   (of the form `${namespace}:${resolved_path}`) that contributed to the creation of the imported (and possibly bundled) resource.
+ *
  * TODO: I don't currently include the original `with` import attribute in this description, but should I? It'll be defunct anyway.
 */
 export interface ImportedEntity<K = any> extends Pick<NonNullable<ImportEntity<K>>, "key" | "with"> {
@@ -172,15 +177,6 @@ export interface ImportedEntity<K = any> extends Pick<NonNullable<ImportEntity<K
 	 * use the `relativePath` function from my `jsr:@oazmi/kitchensink/pathman` or `npm:@oazmi/kitchensink/pathman` libraries.
 	*/
 	outputPath: string
-
-	/** the original **resolved** path of the resource that was provide during the transformation stage (i.e. {@link ImportEntity.path}).
-	 *
-	 * this value is `undefined` for resource links that were performed by esbuild itself,
-	 * since it will be quite convoluted for me to trace back _which_ output imported file corresponds to _which_ resource during the loading stage.
-	 *
-	 * however, it is always defined for the case where the user provides {@link ImportEntity}s during the transformation stage.
-	*/
-	path?: string
 }
 
 /** a single input file filteration rule used in {@link OnEmitOptions}. */

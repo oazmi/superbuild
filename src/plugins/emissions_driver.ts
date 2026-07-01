@@ -65,12 +65,20 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 			const
 				warnings: EsbuildPartialMessage[] = [],
 				errors: EsbuildPartialMessage[] = [],
-				longbuild_base_filename = longBuildController.baseFilename,
+				longbuild_base_filename = longBuildController.baseFilename.toLowerCase(),
+				metafile_abs_outputs_entries = [...metafile_abs_outputs.entries()].map((entry): typeof entry => {
+					// turning all input source `resolved_path`s to lower case for "best effort" case-insensitive matching, later on.
+					const
+						[output_path, props] = entry,
+						props_clone = { ...props }
+					props_clone.inputs = props.inputs.map((resolved_path) => resolved_path.toLowerCase())
+					return [output_path, props_clone]
+				}),
 				// below, we could have simply done `longbuild_files = output_files.filter((file) => { return file.path.endsWith(longbuild_base_filename) })`,
 				// however, it will only work when the user does not specify `BuildOptions["entryNames"]`.
 				// but if they do, then `file.path` will be unlikely to end with `longbuild_base_filename`,
 				// rendering the method above useless, and hence is why we use the surefire `inputs` tracing method below.
-				longbuild_files = [...metafile_abs_outputs.entries()].filter(([output_path, props]) => {
+				longbuild_files = metafile_abs_outputs_entries.filter(([output_path, props]) => {
 					// filter out all output files that have a "long build js file" as one of its input source files.
 					return props.inputs.some((source_resolved_path) => source_resolved_path.endsWith(longbuild_base_filename))
 				}).map(([output_path, props]) => {
@@ -83,19 +91,12 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 				errors.push({ text: `[parseLongBuildImportedEntities]: expected there to be only a single long-build file after bundling, instead found: ${longbuild_files.length} files.` })
 				return { importedEntities: new Map(), warnings, errors }
 			}
+
 			const
 				longbuild_file = longbuild_files[0],
 				longbuild_path = resolve_path(longbuild_file.path),
 				longbuild_contents = textDecoder.decode(longbuild_file.contents),
 				import_entities = await longBuildController.parseLongBuildFileContent(longbuild_contents),
-				metafile_abs_outputs_entries = [...metafile_abs_outputs.entries()].map((entry): typeof entry => {
-					// turning all input source `resolved_path`s to lower case for "best effort" case-insensitive matching.
-					const
-						[output_path, props] = entry,
-						props_clone = { ...props }
-					props_clone.inputs = props.inputs.map((resolved_path) => resolved_path.toLowerCase())
-					return [output_path, props_clone]
-				}),
 				imported_entities = [...import_entities.entries()].map((
 					[importer_resolved_path, entities_to_import]
 				): ([importer_output_path: string, file_imports: Array<ImportedEntity>] | undefined) => {
@@ -126,8 +127,6 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 							outputPath: resolve_path(longbuild_path, entity.path),
 							key: entity.key,
 							with: entity.with,
-							// path: "TODO" // TODO: honestly, backtracking the namespaced resolved path would be too much effort,
-							// and it'll have the same "best guess" issue that already plagues this function, so I might remove the `path` field altogether.
 						}
 					})
 
@@ -186,9 +185,7 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 			const esbuild_imports: ImportedEntity[] = props.imports.map((outputPath): ImportedEntity => {
 				// finding the original namespaced resolved path of the file that resulted in the `outputPath` file.
 				// since there could be multiple `inputs` that resulted in the creation of the file at `outputPath`,
-				// we set the `key` to be an array of all `inputs`, while leaving out the `path` to be `undefined`
-				// (even though it would make sense to set `path = inputs[0]` if there was only a single contributing input,
-				// but for consistency of the format, I'll be using array `key`s exclusively.)
+				// we set the `key` to be an array of all `inputs`.
 				const output_path_inputs = metafile_abs_outputs.get(outputPath)?.inputs
 				if (!output_path_inputs || output_path_inputs.length <= 0) {
 					// TODO: under this scenario, I can technically still construct a `key` if I were to inspect the `imports` of the `outputPath`,

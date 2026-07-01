@@ -57,7 +57,7 @@ export const generateUuid = (segments = 1, current_time?: number) => {
 // regex for detecting if a path is an absolute windows path. copied from `@oazmi/kitchensink/pathman`.
 const windows_absolute_path_regex = /^[a-z]\:[\/\\]/i
 
-/** normalize an esbuild file path so that it:
+/** normalize an esbuild resolved file path so that it:
  * - uses posix `"/"` directory separators.
  * - always has a leading `"./"` for relative paths.
  * - is always in the `${namespace}:${path}` format, even when `namespace === "file".`
@@ -77,20 +77,20 @@ const normalize_local_filepath = (path: string): string => {
 export const normalizeMetafile = (esbuild_metafile: EsbuildMetafile): EsbuildMetafile => {
 	let { inputs, outputs } = structuredClone(esbuild_metafile) // we will be mutating directly, hence the need for a clone.
 
-	inputs = object_fromEntries(object_entries(inputs).map(([pathname, props]) => {
+	inputs = object_fromEntries(object_entries(inputs).map(([resolved_path, props]) => {
 		// resolved path name of this input file.
-		pathname = normalize_esbuild_filepath(pathname)
+		resolved_path = normalize_esbuild_filepath(resolved_path)
 		// direct dependencies of this input file as resolved paths.
 		props.imports = props.imports.map((props) => {
 			props.path = normalize_esbuild_filepath(props.path)
 			return props
 		})
-		return [pathname, props]
+		return [resolved_path, props]
 	}))
 
-	outputs = object_fromEntries(object_entries(outputs).map(([pathname, props]) => {
+	outputs = object_fromEntries(object_entries(outputs).map(([output_path, props]) => {
 		// path name of the output file (including the path to the `outdir` relative to the `cwd` or `absWorkingDir`).
-		pathname = normalize_local_filepath(pathname)
+		output_path = normalize_local_filepath(output_path)
 		// list of linked output files that are referenced by this resource (but not bundled into it).
 		// even though the import paths are relative, they are relative to the `cwd` or `absWorkingDir`,
 		// and not relative to the `pathname`.
@@ -99,12 +99,12 @@ export const normalizeMetafile = (esbuild_metafile: EsbuildMetafile): EsbuildMet
 			return props
 		})
 		// list of files (as resolved paths) that were bundled into this resource.
-		props.inputs = object_fromEntries(object_entries(props.inputs).map(([path, props]) => {
-			return [normalize_esbuild_filepath(path), props]
+		props.inputs = object_fromEntries(object_entries(props.inputs).map(([resolved_path, props]) => {
+			return [normalize_esbuild_filepath(resolved_path), props]
 		}))
 		// entrypoint's resolved path corresponding to this output resource.
 		if (props.entryPoint) { props.entryPoint = normalize_esbuild_filepath(props.entryPoint) }
-		return [pathname, props]
+		return [output_path, props]
 	}))
 
 	return { inputs, outputs }
