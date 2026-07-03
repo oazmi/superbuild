@@ -7,13 +7,13 @@
  * @module
 */
 
-import { ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isNull, isString, object_entries, pathToPosixPath, promise_all, resolveAsUrl, resolvePathFactory, textDecoder, textEncoder } from "../deps.ts"
+import { ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isNull, isString, object_entries, pathToPosixPath, promise_all, promiseOutside, resolveAsUrl, resolvePathFactory, textDecoder, textEncoder } from "../deps.ts"
 import type { EsbuildMetafile, EsbuildOnEndCallback, EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup } from "../esbuild/strongtypes.ts"
 import type { EsbuildOutputFile } from "../esbuild/typedefs.ts"
 import { concatArrays, lowercaseMetafile, mergeMapArrays, normalizeMetafile } from "../funcdefs.ts"
 import type { OnEmitHandler, SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
-import type { BundledInputFile, ImportedEntity } from "../super/typedefs.ts"
+import type { BundledInputFile, ImportedEntity, OnEmitResult } from "../super/typedefs.ts"
 import { EMIT_EMPTY, INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
 import type { LongBuildController, longBuildPlugin } from "./long_build.ts"
 
@@ -81,50 +81,28 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 				parsed_esbuild_imports = parseEsbuildImportedEntities(ctx),
 				parsed_user_imports = await parseLongBuildImportedEntities(ctx, longbuild_file),
 				all_parsed_imports = mergeMapArrays(parsed_esbuild_imports, parsed_user_imports)
-			// TODO: in the future, the output files must be ordered with respect to their topological dependencies.
-			// and then, to make it faster, we should also allow parallel output file handling when two or more output files are independent of one another.
-			// I think this can be achieved by creating a chain of promises in groups of topological output file ordering, and then letting it run wild.
-			const on_emit_promises = abs_outputs.map(async (abs_output_entry) => {
-				// attempt at matching the output file with all available `onEmit` hooks' filters,
-				// and stopping at the first match that yields a viable result.
-				for (const handler of onEmitHandlers) {
-					const match_result = matchOnEmitFilter(ctx, handler, all_parsed_imports, abs_output_entry)
-					if (isNull(match_result)) { continue }
-					const { match: matched_file, inputs, imports, warnings: local_warnings } = match_result
-					const on_emit_result = await handler.callback({
-						outputPath: matched_file.path,
-						contents: matched_file.contents,
-						inputs: inputs!,
-						imports: imports!,
-					})
 
-					// updating the emitted file `path` and `contents` from the `result`.
-					if (isNull(on_emit_result)) { continue }
-					if (on_emit_result.contents) {
-						if (on_emit_result.contents === EMIT_EMPTY) { }// TODO: implement output file deletion.
-						else {
-							matched_file.contents = isString(on_emit_result.contents)
-								? textEncoder.encode(on_emit_result.contents)
-								: on_emit_result.contents
-						}
-					}
-					if (on_emit_result.path) { matched_file.path = on_emit_result.path }
-					if (on_emit_result.updateDependents) {
-						// TODO: handle this option after grouped topological dependency traversal has been implemented.
-					}
-
-					// inserting the original plugin names of the plugins where the errors and warnings originated from.
-					const pluginName = handler.pluginName
-					on_emit_result.warnings?.forEach((warning) => { if (!warning.pluginName) { warning.pluginName = pluginName } })
-					on_emit_result.errors?.forEach((error) => { if (!error.pluginName) { error.pluginName = pluginName } })
-					on_emit_result.warnings = concatArrays(local_warnings, on_emit_result.warnings) // also add warnings from this plugin (the emissions driver) itself.
-					return on_emit_result
+			// below, we create a parallel/branching chain of promises that is guaranteeded to resolve in topological ordering (import dependency wise),
+			// and then we fire the `onEmit` action on each source node (zero dependency output files) to ignite the reaction.
+			const
+				dependency_graph = DependencyGraphNode.createDependencyGraph(all_parsed_imports),
+				source_resource_nodes = DependencyGraphNode.chainNodePromises(dependency_graph),
+				all_node_promises = Promise.all([...dependency_graph.values()].map((node) => (node.promise))),
+				on_emit_callback: DependencyGraphNode["callback"] = async (node) => {
+					const output_path = node.id
+					console.log(`%cemit outputPath: ${output_path}`, "color: red; font-weight: bold;")
+					const result = await performOnEmitOnOutputFile(ctx, onEmitHandlers, all_parsed_imports, output_path)
+					// return result
 				}
-			})
+			dependency_graph.forEach((node) => { node.setCallback(on_emit_callback) })
+			source_resource_nodes.forEach((node) => { node.fire() })
+			await all_node_promises
 
-			for (const value of await promise_all(on_emit_promises)) {
-				if (value?.warnings) { ctx.warnings.push(...value.warnings) }
-			}
+			// TODO: figure out error and warning accumulation tactic.
+			// for (const value of await promise_all(on_emit_promises)) {
+			// 	if (value?.warnings) { ctx.warnings.push(...value.warnings) }
+			// }
+
 			return { warnings: ctx.warnings, errors: ctx.errors }
 		}
 
@@ -457,16 +435,17 @@ const matchOnEmitFilter = (
 	ctx: EmissionDriverContext,
 	handler: OnEmitHandler,
 	all_imported_entities_map: ParseImportedEntities,
-	abs_output_entry: FormattedMetafileOutputEntry,
+	output_path: string,
 ): (MatchOnEmitFilterResult | undefined) => {
 	const {
 		resolvedResourceRegistry,
+		metafileOutputs,
 		outputFiles,
 		warnings,
 	} = ctx
 
 	const
-		[output_path, props] = abs_output_entry,
+		props = metafileOutputs.get(output_path)!,
 		{ pluginName, filter, inputs: input_filters } = handler,
 		local_warnings: EsbuildPartialMessage[] = []
 	// test the output file name filter first.
@@ -516,5 +495,117 @@ const matchOnEmitFilter = (
 		inputs: bundled_files,
 		imports: all_imports,
 		warnings: local_warnings,
+	}
+}
+
+const performOnEmitOnOutputFile = async (
+	ctx: EmissionDriverContext,
+	on_emit_handlers: OnEmitHandler[],
+	all_imported_entities_map: ParseImportedEntities,
+	output_path: string,
+): Promise<OnEmitResult | undefined> => {
+	// attempt at matching the output file with all available `onEmit` hooks' filters,
+	// and stopping at the first match that yields a viable result.
+	for (const handler of on_emit_handlers) {
+		const match_result = matchOnEmitFilter(ctx, handler, all_imported_entities_map, output_path)
+		if (isNull(match_result)) { continue }
+		const { match: matched_file, inputs, imports, warnings: local_warnings } = match_result
+		const on_emit_result = await handler.callback({
+			outputPath: matched_file.path,
+			contents: matched_file.contents,
+			inputs: inputs!,
+			imports: imports!,
+		})
+
+		// updating the emitted file `path` and `contents` from the `result`.
+		if (isNull(on_emit_result)) { continue }
+		if (on_emit_result.contents) {
+			if (on_emit_result.contents === EMIT_EMPTY) { }// TODO: implement output file deletion.
+			else {
+				matched_file.contents = isString(on_emit_result.contents)
+					? textEncoder.encode(on_emit_result.contents)
+					: on_emit_result.contents
+			}
+		}
+		if (on_emit_result.path) { matched_file.path = on_emit_result.path }
+		if (on_emit_result.updateDependents) {
+			// TODO: handle this option after grouped topological dependency traversal has been implemented.
+		}
+
+		// inserting the original plugin names of the plugins where the errors and warnings originated from.
+		const pluginName = handler.pluginName
+		on_emit_result.warnings?.forEach((warning) => { if (!warning.pluginName) { warning.pluginName = pluginName } })
+		on_emit_result.errors?.forEach((error) => { if (!error.pluginName) { error.pluginName = pluginName } })
+		on_emit_result.warnings = concatArrays(local_warnings, on_emit_result.warnings) // also add warnings from this plugin (the emissions driver) itself.
+		return on_emit_result
+	}
+}
+
+type DependencyGraph<ID = string> = Map<ID, DependencyGraphNode<ID>>
+
+class DependencyGraphNode<ID = string> {
+	public readonly id: ID
+	public readonly dependencies: Set<ID>
+	public readonly promise: Promise<void>
+	protected resolve: () => void
+	protected reject: (reason?: any) => void
+	protected callback?: (self: this) => Promise<void>
+
+	constructor(id: ID, dependencies: Iterable<ID>) {
+		this.id = id
+		this.dependencies = new Set(dependencies)
+		const [promise, resolve, reject] = promiseOutside<void>()
+		this.promise = promise
+		this.resolve = resolve
+		this.reject = reject
+	}
+
+	/** set the callback function to run once the {@link promise | promises} of _this_ node's {@link dependencies} get resolved.
+	 * once your callback has been executed and waited for, the {@link promise} of _this_ node will also get resolved.
+	*/
+	public setCallback(callback: (self: this) => Promise<void>): void {
+		this.callback = callback
+	}
+
+	/** manually fire the {@link callback} function of this node, and have its {@Link promise} get resolved.
+	 * this is only intended to be used for source nodes (which carry no dependencies), although it is not enforced.
+	*/
+	public async fire(): Promise<void> {
+		this.callback?.(this).finally(this.resolve)
+		return this.promise
+	}
+
+	/** prepare a dependency graph from a `Map` of entity imports information. */
+	static createDependencyGraph(all_imported_entities_map: ParseImportedEntities): DependencyGraph<string> {
+		const graph = [...all_imported_entities_map].map(([output_path, imported_entities]) => {
+			const
+				dependency_paths = imported_entities.map((props) => { return props.outputPath }),
+				node = new this<string>(output_path, dependency_paths)
+			return [output_path, node] satisfies [graph_id: string, graph_node: InstanceType<typeof this<string>>]
+		})
+		return new Map(graph)
+	}
+
+	/** chains the promises of a dependency graph, so that each node's {@link callback} is fired after all of it dependencies have been fired,
+	 * while maintaining asynchronocity among all branches.
+	 * the returned value contains an array of all nodes that are source nodes (carry no dependency).
+	*/
+	static chainNodePromises(dependency_graph: DependencyGraph<string>): Array<DependencyGraphNode<string>> {
+		const source_nodes: Array<DependencyGraphNode<string>> = []
+		for (const [id, node] of dependency_graph) {
+			if (node.dependencies.size <= 0) {
+				source_nodes.push(node)
+				continue
+			}
+			const dependency_promises = [...node.dependencies].map((dep_id) => {
+				const dep_node = dependency_graph.get(dep_id)!
+				return dep_node.promise
+			})
+			const callback_action = async () => { return node.callback?.(node) }
+			Promise.all(dependency_promises)
+				.then(callback_action, callback_action)
+				.finally(node.resolve)
+		}
+		return source_nodes
 	}
 }
