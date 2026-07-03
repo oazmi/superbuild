@@ -13,6 +13,16 @@ export const concatArrays = <T>(arr1?: Array<T>, arr2?: Array<T>): Array<T> | un
 				: [...arr1, ...arr2]
 }
 
+export const mergeMapArrays = <K, T>(map1: Map<K, Array<T>>, map2: Map<K, Array<T>>): Map<K, Array<T>> => {
+	const result = new Map<K, Array<T>>(map1)
+	for (const [key, arr] of map2) {
+		const existing_arr = result.get(key)
+		if (existing_arr === undefined) { result.set(key, arr) }
+		else { result.set(key, existing_arr.concat(arr)) }
+	}
+	return result
+}
+
 /** this function wraps on top of a promise-resolver function, and returns two functions.
  * the first function, when called, will resolve the original `promise_resolver` _after_ the specified `delay` amount of milliseconds have passed.
  * during this delay time, you may use the second function that is returned to cancel the task of running the `promise_resolver` before it times out.
@@ -104,6 +114,33 @@ export const normalizeMetafile = (esbuild_metafile: EsbuildMetafile): EsbuildMet
 		}))
 		// entrypoint's resolved path corresponding to this output resource.
 		if (props.entryPoint) { props.entryPoint = normalize_esbuild_filepath(props.entryPoint) }
+		return [output_path, props]
+	}))
+
+	return { inputs, outputs }
+}
+
+/** lower the casing of an esbuild metafile's namespaced resolved paths,
+ * to ensure that there won't be any casing conflicts when searching for a particular resource.
+ * however, the casing on the output file names (keyof {@link EsbuildMetafile.outputs} and
+ * `EsbuildMetafile.outputs[string].imports[string].path`) won't be affected.
+*/
+export const lowercaseMetafile = (esbuild_metafile: EsbuildMetafile): EsbuildMetafile => {
+	let { inputs, outputs } = structuredClone(esbuild_metafile) // we will be mutating directly, hence the need for a clone.
+
+	inputs = object_fromEntries(object_entries(inputs).map(([resolved_path, props]) => {
+		props.imports = props.imports.map((props) => {
+			props.path = props.path.toLowerCase()
+			return props
+		})
+		return [resolved_path.toLowerCase(), props]
+	}))
+
+	outputs = object_fromEntries(object_entries(outputs).map(([output_path, props]) => {
+		props.inputs = object_fromEntries(object_entries(props.inputs).map(([resolved_path, props]) => {
+			return [resolved_path.toLowerCase(), props]
+		}))
+		if (props.entryPoint) { props.entryPoint = props.entryPoint.toLowerCase() }
 		return [output_path, props]
 	}))
 

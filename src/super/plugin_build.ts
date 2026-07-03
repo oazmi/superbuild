@@ -213,7 +213,9 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 					namespace = _namespace ? _namespace : "file",
 					key = namespace + ":" + path,
 					contributing_emit_file: BundledInputFile = { path, namespace, suffix, loader, transformLoader, emitData }
-				resolvedResourceRegistry.set(key, contributing_emit_file)
+				// we force the `key` to always conform to lower casing,
+				// because that way we can counter filesystem casing-insensitivity later on during the emission stage.
+				resolvedResourceRegistry.set(key.toLowerCase(), contributing_emit_file)
 			}
 			return result
 		}
