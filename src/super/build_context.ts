@@ -53,9 +53,6 @@ export class SuperBuildContext {
 	/** holds all loaded resources, using `${namespace}:${resolved_path}` for the key.
 	 * this registry is needed in order to trace back the loaded input file(s) from which an emitted file originates from,
 	 * in order to make the functionality of {@link SuperPluginBuild.onEmit} possible.
-	 *
-	 * > [!important]
-	 * > the key is always set to lower casing for consistency later on.
 	*/
 	public resolvedResourceRegistry: Map<string, BundledInputFile> = new Map()
 

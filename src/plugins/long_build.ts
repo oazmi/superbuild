@@ -10,7 +10,6 @@
 import { array_isEmpty, escapeLiteralStringForRegex, json_stringify, parseFilepathInfo, pathToPosixPath, promiseOutside } from "../deps.ts"
 import type { EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs, OnResolveArgs, OnResolveResult } from "../esbuild/strongtypes.ts"
 import { cancelableDelayedPromiseResolver, generateUuid } from "../funcdefs.ts"
-import type { SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
 import type { ImportEntity } from "../super/typedefs.ts"
 import { INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
