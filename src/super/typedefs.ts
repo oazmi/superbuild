@@ -296,9 +296,3 @@ export interface OnEmitResult extends EsbuildOnEndResult {
  * then the transformed contents from the `onTransform` hook will be passed to esbuild as is.
 */
 export type OnEmitCallback = (args: OnEmitArgs) => MaybePromiseOrNull<OnEmitResult>
-
-export type ErrableResult<T> = {
-	result: T
-	warnings: EsbuildPartialMessage[]
-	errors: EsbuildPartialMessage[]
-}
