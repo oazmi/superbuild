@@ -8,7 +8,7 @@
 */
 
 import { ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isArray, isNull, isString, type MaybePromiseLike, object_entries, pathToPosixPath, promise_all, promiseOutside, resolveAsUrl, resolvePathFactory, textDecoder, textEncoder } from "../deps.ts"
-import type { EsbuildMetafile, EsbuildOnEndCallback, EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup } from "../esbuild/strongtypes.ts"
+import type { EsbuildMetafile, EsbuildMetafileImportProps, EsbuildOnEndCallback, EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup } from "../esbuild/strongtypes.ts"
 import type { EsbuildOutputFile } from "../esbuild/typedefs.ts"
 import { concatArrays, lowercaseMetafile, mergeMapArrays, normalizeMetafile, splitNamespacedPath } from "../funcdefs.ts"
 import type { OnEmitHandler, SuperBuildContext } from "../super/build_context.ts"
@@ -60,8 +60,7 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 			const
 				outputFiles = format_output_files(resolve_path, result.outputFiles!),
 				metafile = lowercaseMetafile(normalizeMetafile(result.metafile!)),
-				abs_outputs = format_metafile_outputs(resolve_path, metafile.outputs, true),
-				metafileOutputs = new Map(abs_outputs),
+				metafileOutputs = format_metafile_outputs(resolve_path, metafile.outputs, true),
 				registry_lowercase = format_resolved_resource_registry(resolvedResourceRegistry)
 
 			const ctx: EmissionDriverContext = {
@@ -178,34 +177,42 @@ interface FormattedMetafileOutputProps {
 	/** namespaced and absolute resolved file paths of input resources that contributed (i.e. were bundled) into this output file. */
 	inputs: string[]
 
-	/** absolute file paths to other output files that need to be imported by this output file. */
-	imports: string[]
+	/** the `path` field inside specifies the absolute file paths to other output files that need to be imported by this output file,
+	 * unless the `external` flag is set to `true`, in which case the import `path` does not correspond to a local output file.
+	*/
+	imports: Array<EsbuildMetafileImportProps>
 }
-
-type FormattedMetafileOutputEntry = [
-	/** not namespaced, but an absolute file path. */
-	output_path: string,
-	properties: FormattedMetafileOutputProps,
-]
 
 /** formats a normalized metafile's outputs (from {@link normalizeMetafile}) to a more convenient format,
  * that exclusively uses absolute posix paths for all filesystem paths.
+ *
+ * the returned `Map`'s keys are the absolute output paths of the emitted files, and the values specify their metadata properties.
 */
 const format_metafile_outputs = (
 	resolve_path_fn: (path: string) => string,
 	normalized_metafile_outputs: EsbuildMetafile["outputs"],
 	force_lowercase: boolean = true,
-): Array<FormattedMetafileOutputEntry> => {
+): Map<string, FormattedMetafileOutputProps> => {
 	const
 		namespaced_path_to_abs_namespaced_path = namespaced_path_to_abs_namespaced_path_factory(resolve_path_fn),
 		output_entries = object_entries(normalized_metafile_outputs)
-	return output_entries.map(([output_path, props]): FormattedMetafileOutputEntry => {
+
+	const result_entries = output_entries.map(([output_path, props]): [string, FormattedMetafileOutputProps] => {
 		const
 			abs_output_path = resolve_path_fn(output_path),
 			abs_entrypoint = props.entryPoint ? namespaced_path_to_abs_namespaced_path(props.entryPoint) : undefined,
 			abs_input_paths = object_entries(props.inputs).map(([input_path, _props]) => namespaced_path_to_abs_namespaced_path(input_path)),
 			// the import paths here are relative to cwd, and not relative to `abs_output_path`.
-			abs_imports = props.imports.map(({ path, kind }) => resolve_path_fn(path))
+			// TODO: I need to investigate what happens when `external === true`.
+			// it'll be problematic because no output file will correspond to its path.
+			// moreover, it'll be wrong to use `resolve_path_fn` for it.
+			// TODO: also allow the `OnTransformResult.imports` to specify if a particular import is external.
+			// (although, what will even be the point of having the user tell us that a particular import is external,
+			// when they can just keep quiet about it by not including in the imports.)
+			abs_imports: Array<EsbuildMetafileImportProps> = props.imports.map(({ path, kind, external = false }) => {
+				const abs_output_path = external ? path : resolve_path_fn(path)
+				return { path: abs_output_path, kind, external }
+			})
 		return [abs_output_path, {
 			entryPoint: force_lowercase
 				? abs_entrypoint?.toLowerCase()
@@ -216,6 +223,8 @@ const format_metafile_outputs = (
 			imports: abs_imports,
 		}]
 	})
+
+	return new Map(result_entries)
 }
 
 interface FormattedOutputFile {
@@ -394,7 +403,9 @@ const parseLongBuildImportedEntities = async (
 				return {
 					outputPath: resolvePath(longbuild_path, entity.path),
 					key: entity.key,
+					kind: "user-import", // this is our standard `kind` label for user imports that originate from the transformation stage.
 					with: entity.with,
+					external: false, // TODO: once I add `entity.external` as an option, this needs to be inherited from it.
 				}
 			})
 
@@ -417,12 +428,14 @@ const parseEsbuildImportedEntities = (ctx: EmissionDriverContext): ParseImported
 	const imported_entities = [...metafileOutputs].map((
 		[importer_output_path, props]
 	): [importer_output_path: string, file_imports: Array<ImportedEntity>] => {
-		const esbuild_imports: ImportedEntity[] = props.imports.map((outputPath): ImportedEntity => {
+		const esbuild_imports: ImportedEntity[] = props.imports.map((import_props): ImportedEntity => {
 			// finding the original namespaced resolved path of the file that resulted in the `outputPath` file.
 			// since there could be multiple `inputs` that resulted in the creation of the file at `outputPath`,
 			// we set the `key` to be an array of all `inputs`.
-			const output_path_inputs = metafileOutputs.get(outputPath)?.inputs
-			if (!output_path_inputs || output_path_inputs.length <= 0) {
+			const
+				{ path: outputPath, kind, external } = import_props,
+				output_path_inputs = metafileOutputs.get(outputPath)?.inputs
+			if (!external && (!output_path_inputs || output_path_inputs.length <= 0)) {
 				// TODO: under this scenario, I can technically still construct a `key` if I were to inspect the `imports` of the `outputPath`,
 				// and then trace which of _its_ inputs correspond to this `outputPath`,
 				// but that's just too convoluted and it'll still require a bunch of guessing, at which point it will not be worth the effort.
@@ -432,7 +445,7 @@ const parseEsbuildImportedEntities = (ctx: EmissionDriverContext): ParseImported
 						+ `but worry not, as this could happen when the emitted file is just a re-exporting chunk file.`
 				})
 			}
-			return { outputPath, key: output_path_inputs }
+			return { outputPath, key: output_path_inputs, kind, external }
 		})
 		return [importer_output_path, esbuild_imports]
 	})
@@ -597,7 +610,10 @@ class DependencyGraphNode<ID = string, T = any> {
 	static createDependencyGraph<T>(all_imported_entities_map: ParseImportedEntities): DependencyGraph<string, T> {
 		const graph = [...all_imported_entities_map].map(([output_path, imported_entities]) => {
 			const
-				dependency_paths = imported_entities.map((props) => { return props.outputPath }),
+				dependency_paths = imported_entities
+					// external resources do not contribute to dependency graph, as they themselves (the external resources) do not get emitted, nor do they go through the emission stage.
+					.filter((props) => { return !props.external })
+					.map((props) => { return props.outputPath }),
 				node = new this<string>(output_path, dependency_paths)
 			return [output_path, node] satisfies [graph_id: string, graph_node: InstanceType<typeof this<string, T>>]
 		})

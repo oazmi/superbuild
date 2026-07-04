@@ -4,7 +4,7 @@
 */
 
 import type { AutoSuggestOrString, MaybePromiseOrNull } from "../deps.ts"
-import type { EsbuildLoaderType, EsbuildOnEndResult, EsbuildPartialMessage, OnLoadResult } from "../esbuild/strongtypes.ts"
+import type { EsbuildLoaderType, EsbuildMetafileImportProps, EsbuildOnEndResult, EsbuildOutputsImportKind, EsbuildPartialMessage, OnLoadResult } from "../esbuild/strongtypes.ts"
 import type { EsbuildNativeResolver, nativeReplicaPluginSetup } from "../plugins/native_replica.ts"
 import type { SuperPluginBuild } from "./plugin_build.ts"
 
@@ -159,8 +159,10 @@ export interface ImportEntity<K = any> {
 	// namespace?: string // specify a namespace for the loader to be used.
 	// pluginData?: any // specify any custom plugin data that should be used.
 	// kind: EsbuildOutputsImportKind // for now, it can only be a regular js dynamic import, since that is what the long-build performs.
-	// external?: boolean
+	// external?: boolean // TODO: enable this and then refactor the longbuild file that gets generated to skip these imports.
 }
+
+export type ImportedEntityKind = EsbuildOutputsImportKind | "user-import"
 
 /** a description of an entity that is imported by an output file (post-build, during the emission stage).
  *
@@ -177,6 +179,15 @@ export interface ImportedEntity<K = any> extends Pick<NonNullable<ImportEntity<K
 	 * use the `relativePath` function from my `jsr:@oazmi/kitchensink/pathman` or `npm:@oazmi/kitchensink/pathman` libraries.
 	*/
 	outputPath: string
+
+	/** indicates the kind of import that is being performed. all of these are inherited from esbuild metafile's
+	 * {@link EsbuildMetafileImportProps.kind | `kind` field}, with the exception of `"user-import"`,
+	 * which is assigned when the user specifies an import during the transformation stage ({@link OnTransformResult}).
+	*/
+	kind: ImportedEntityKind
+
+	/** indicates if this imported entity is an external resource (and hence not bundled). */
+	external: boolean
 }
 
 /** a single input file filteration rule used in {@link OnEmitOptions}. */
