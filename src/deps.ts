@@ -11,7 +11,7 @@ export { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, fileUrlT
 export { promiseOutside, promiseTimeout } from "@oazmi/kitchensink/promiseman"
 export { escapeLiteralStringForRegex } from "@oazmi/kitchensink/stringman"
 export { isArray, isFunction, isRecord, isString } from "@oazmi/kitchensink/struct"
-export type { MaybePromise, Optional, Require } from "@oazmi/kitchensink/typedefs"
+export type { MaybePromise, MaybePromiseLike, Optional, Require } from "@oazmi/kitchensink/typedefs"
 
 /** flags used for minifying (or eliminating) debugging logs and asserts, when an intelligent bundler, such as `esbuild`, is used. */
 export const enum DEBUG {

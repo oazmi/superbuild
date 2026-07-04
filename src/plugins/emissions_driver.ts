@@ -7,7 +7,7 @@
  * @module
 */
 
-import { ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isNull, isString, object_entries, pathToPosixPath, promise_all, promiseOutside, resolveAsUrl, resolvePathFactory, textDecoder, textEncoder } from "../deps.ts"
+import { ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isArray, isNull, isString, type MaybePromiseLike, object_entries, pathToPosixPath, promise_all, promiseOutside, resolveAsUrl, resolvePathFactory, textDecoder, textEncoder } from "../deps.ts"
 import type { EsbuildMetafile, EsbuildOnEndCallback, EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup } from "../esbuild/strongtypes.ts"
 import type { EsbuildOutputFile } from "../esbuild/typedefs.ts"
 import { concatArrays, lowercaseMetafile, mergeMapArrays, normalizeMetafile } from "../funcdefs.ts"
@@ -84,24 +84,35 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 
 			// below, we create a parallel/branching chain of promises that is guaranteeded to resolve in topological ordering (import dependency wise),
 			// and then we fire the `onEmit` action on each source node (zero dependency output files) to ignite the reaction.
+			type NullableOnEmitResult = OnEmitResult | undefined | null | void
 			const
-				dependency_graph = DependencyGraphNode.createDependencyGraph(all_parsed_imports),
-				source_resource_nodes = DependencyGraphNode.chainNodePromises(dependency_graph),
+				dependency_graph = DependencyGraphNode.createDependencyGraph<NullableOnEmitResult>(all_parsed_imports),
+				source_resource_nodes = DependencyGraphNode.chainNodePromises<NullableOnEmitResult>(dependency_graph),
 				all_node_promises = Promise.all([...dependency_graph.values()].map((node) => (node.promise))),
-				on_emit_callback: DependencyGraphNode["callback"] = async (node) => {
+				on_emit_callback: DependencyGraphNode<string, NullableOnEmitResult>["callback"] = async (node, dependency_results) => {
 					const output_path = node.id
-					console.log(`%cemit outputPath: ${output_path}`, "color: red; font-weight: bold;")
-					const result = await performOnEmitOnOutputFile(ctx, onEmitHandlers, all_parsed_imports, output_path)
-					// return result
+					// console.log(`%cemit outputPath: ${output_path}`, "color: red; font-weight: bold;") // TODO: remove logging.
+					const on_emit_result = await performOnEmitOnOutputFile(ctx, onEmitHandlers, all_parsed_imports, output_path)
+					// if any error is encountered in the user's `onEmit` hook function's return value,
+					// exit the build early by rejecting the promise, and cancelling everything downstream.
+					if ((on_emit_result?.errors?.length ?? 0) > 0) { node.reject(on_emit_result!.errors!) }
+					return on_emit_result
 				}
 			dependency_graph.forEach((node) => { node.setCallback(on_emit_callback) })
 			source_resource_nodes.forEach((node) => { node.fire() })
-			await all_node_promises
 
-			// TODO: figure out error and warning accumulation tactic.
-			// for (const value of await promise_all(on_emit_promises)) {
-			// 	if (value?.warnings) { ctx.warnings.push(...value.warnings) }
-			// }
+			// waiting for all of the `onEmit` hooks to take action, and then accumulate all warnings and errors.
+			await all_node_promises
+				.then((all_on_emit_results) => {
+					for (const on_emit_result of all_on_emit_results) {
+						if (on_emit_result?.warnings) { ctx.warnings.push(...on_emit_result.warnings) }
+						// there shouldn't be any errors by this point. but I'll just put this case, just in case.
+						if (on_emit_result?.errors) { ctx.errors.push(...on_emit_result.errors) }
+					}
+				}).catch((errors) => {
+					if (isArray(errors)) { ctx.errors.push(...errors) }
+					else { ctx.errors.push(errors) }
+				})
 
 			return { warnings: ctx.warnings, errors: ctx.errors }
 		}
@@ -239,7 +250,7 @@ const format_resolved_resource_registry = (registry: SuperBuildContext["resolved
 			return [resolved_path.toLowerCase(), props]
 		}))
 
-	if (registry_lowercase.size <= registry.size) {
+	if (registry_lowercase.size < registry.size) {
 		const
 			size_difference = registry.size - registry_lowercase.size,
 			conflicting_keys: Set<string> = new Set(),
@@ -261,7 +272,7 @@ const format_resolved_resource_registry = (registry: SuperBuildContext["resolved
 				+ `right now, super-build is not able to distinguish between the two (in order to achieve path name casing insensitivity), `
 				+ `so this problem will likely mess up your build. `
 				+ `if it's possible, you should change the name of the duplicate resources. see details for the conflicting resource names`,
-			detail: conflicting_keys,
+			detail: [...conflicting_keys],
 		})
 	}
 
@@ -541,20 +552,20 @@ const performOnEmitOnOutputFile = async (
 	}
 }
 
-type DependencyGraph<ID = string> = Map<ID, DependencyGraphNode<ID>>
+type DependencyGraph<ID = string, T = any> = Map<ID, DependencyGraphNode<ID, T>>
 
-class DependencyGraphNode<ID = string> {
+class DependencyGraphNode<ID = string, T = any> {
 	public readonly id: ID
 	public readonly dependencies: Set<ID>
-	public readonly promise: Promise<void>
-	protected resolve: () => void
-	protected reject: (reason?: any) => void
-	protected callback?: (self: this) => Promise<void>
+	public readonly promise: Promise<T>
+	public readonly resolve: (result: MaybePromiseLike<T>) => void
+	public readonly reject: (reason?: any) => void
+	protected callback?: (self: this, dependency_results: Array<T>) => Promise<T>
 
 	constructor(id: ID, dependencies: Iterable<ID>) {
 		this.id = id
 		this.dependencies = new Set(dependencies)
-		const [promise, resolve, reject] = promiseOutside<void>()
+		const [promise, resolve, reject] = promiseOutside<T>()
 		this.promise = promise
 		this.resolve = resolve
 		this.reject = reject
@@ -563,25 +574,26 @@ class DependencyGraphNode<ID = string> {
 	/** set the callback function to run once the {@link promise | promises} of _this_ node's {@link dependencies} get resolved.
 	 * once your callback has been executed and waited for, the {@link promise} of _this_ node will also get resolved.
 	*/
-	public setCallback(callback: (self: this) => Promise<void>): void {
+	public setCallback(callback: (self: this, dependency_results: Array<T>) => Promise<T>): void {
 		this.callback = callback
 	}
 
 	/** manually fire the {@link callback} function of this node, and have its {@Link promise} get resolved.
 	 * this is only intended to be used for source nodes (which carry no dependencies), although it is not enforced.
 	*/
-	public async fire(): Promise<void> {
-		this.callback?.(this).finally(this.resolve)
+	public async fire(): Promise<T> {
+		if (this.callback) { this.callback(this, []).then(this.resolve, this.reject) }
+		else { this.reject([{ text: `[DependencyGraphNode.fire]: no callback was set for node id: "${this.id}".` } satisfies EsbuildPartialMessage]) }
 		return this.promise
 	}
 
 	/** prepare a dependency graph from a `Map` of entity imports information. */
-	static createDependencyGraph(all_imported_entities_map: ParseImportedEntities): DependencyGraph<string> {
+	static createDependencyGraph<T>(all_imported_entities_map: ParseImportedEntities): DependencyGraph<string, T> {
 		const graph = [...all_imported_entities_map].map(([output_path, imported_entities]) => {
 			const
 				dependency_paths = imported_entities.map((props) => { return props.outputPath }),
 				node = new this<string>(output_path, dependency_paths)
-			return [output_path, node] satisfies [graph_id: string, graph_node: InstanceType<typeof this<string>>]
+			return [output_path, node] satisfies [graph_id: string, graph_node: InstanceType<typeof this<string, T>>]
 		})
 		return new Map(graph)
 	}
@@ -590,8 +602,8 @@ class DependencyGraphNode<ID = string> {
 	 * while maintaining asynchronocity among all branches.
 	 * the returned value contains an array of all nodes that are source nodes (carry no dependency).
 	*/
-	static chainNodePromises(dependency_graph: DependencyGraph<string>): Array<DependencyGraphNode<string>> {
-		const source_nodes: Array<DependencyGraphNode<string>> = []
+	static chainNodePromises<T>(dependency_graph: DependencyGraph<string, T>): Array<InstanceType<typeof this<string, T>>> {
+		const source_nodes: Array<InstanceType<typeof this<string, T>>> = []
 		for (const [id, node] of dependency_graph) {
 			if (node.dependencies.size <= 0) {
 				source_nodes.push(node)
@@ -601,10 +613,16 @@ class DependencyGraphNode<ID = string> {
 				const dep_node = dependency_graph.get(dep_id)!
 				return dep_node.promise
 			})
-			const callback_action = async () => { return node.callback?.(node) }
 			Promise.all(dependency_promises)
-				.then(callback_action, callback_action)
-				.finally(node.resolve)
+				.then((dependency_results) => {
+					const callback = node.callback
+					if (!callback) {
+						node.reject([{
+							text: `[DependencyGraphNode::chainNodePromises]: no callback was set for node id: "${node.id}".`
+						} satisfies EsbuildPartialMessage])
+					} else { node.resolve(callback(node, dependency_results)) }
+				})
+				.catch((reason) => node.reject(reason))
 		}
 		return source_nodes
 	}
