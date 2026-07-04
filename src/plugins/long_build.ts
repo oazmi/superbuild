@@ -153,8 +153,13 @@ export class LongBuildController {
 	}
 
 	public cacheResolvedResult(args: OnResolveResult) {
-		// TODO: ISSUE: I just realized that `external` resources do not go through the loading stage,
-		// hence they cause the files counter to be permanently incremented, causing the build to stagger/wait forever.
+		// first we make sure that if the result is `external`, then we decrement the the file counter,
+		// as this resource will never go to the loading stage (never gets passed to an `onLoad`).
+		if (args.external) {
+			this.decrementFilesCounter(args.path)
+			return
+		}
+		// for all other non-external cases, we expect an `args.path` to exist.
 		const
 			path = pathToPosixPath(args.path!),
 			namespace = args.namespace ?? "file",

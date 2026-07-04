@@ -125,7 +125,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 			const
 				is_resolve_call = is_wrapped_resolve_call(args),
 				result = await callback(is_resolve_call ? unwrap_resolve_call_options(args) : args),
-				is_valid_result = !isNull(result?.path)
+				is_valid_result = !isNull(result?.path) || (result?.external === true)
 			if (is_valid_result) {
 				// if the caller was not esbuild (i.e. a `buildresolve(...)` was performed by a plugin),
 				// then we need only to decrement the file counter to compensate for the initial increment by the long-build plugin's `onResolve` hook.

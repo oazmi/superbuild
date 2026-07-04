@@ -89,9 +89,9 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 				source_resource_nodes = DependencyGraphNode.chainNodePromises<NullableOnEmitResult>(dependency_graph),
 				all_node_promises = Promise.all([...dependency_graph.values()].map((node) => (node.promise))),
 				on_emit_callback: DependencyGraphNode<string, NullableOnEmitResult>["callback"] = async (node, dependency_results) => {
-					const output_path = node.id
-					// console.log(`%cemit outputPath: ${output_path}`, "color: red; font-weight: bold;") // TODO: remove logging.
-					const on_emit_result = await performOnEmitOnOutputFile(ctx, onEmitHandlers, all_parsed_imports, output_path)
+					const
+						output_path = node.id,
+						on_emit_result = await performOnEmitOnOutputFile(ctx, onEmitHandlers, all_parsed_imports, output_path)
 					// if any error is encountered in the user's `onEmit` hook function's return value,
 					// exit the build early by rejecting the promise, and cancelling everything downstream.
 					if ((on_emit_result?.errors?.length ?? 0) > 0) { node.reject(on_emit_result!.errors!) }
@@ -202,14 +202,8 @@ const format_metafile_outputs = (
 			abs_output_path = resolve_path_fn(output_path),
 			abs_entrypoint = props.entryPoint ? namespaced_path_to_abs_namespaced_path(props.entryPoint) : undefined,
 			abs_input_paths = object_entries(props.inputs).map(([input_path, _props]) => namespaced_path_to_abs_namespaced_path(input_path)),
-			// the import paths here are relative to cwd, and not relative to `abs_output_path`.
-			// TODO: I need to investigate what happens when `external === true`.
-			// it'll be problematic because no output file will correspond to its path.
-			// moreover, it'll be wrong to use `resolve_path_fn` for it.
-			// TODO: also allow the `OnTransformResult.imports` to specify if a particular import is external.
-			// (although, what will even be the point of having the user tell us that a particular import is external,
-			// when they can just keep quiet about it by not including in the imports.)
 			abs_imports: Array<EsbuildMetafileImportProps> = props.imports.map(({ path, kind, external = false }) => {
+				// only non-external paths must be resolved to an absolute output local file path.
 				const abs_output_path = external ? path : resolve_path_fn(path)
 				return { path: abs_output_path, kind, external }
 			})
