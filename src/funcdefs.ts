@@ -146,3 +146,11 @@ export const lowercaseMetafile = (esbuild_metafile: EsbuildMetafile): EsbuildMet
 
 	return { inputs, outputs }
 }
+
+export const splitNamespacedPath = (resolved_namespaced_path: string): { namespace: string, path: string } => {
+	const
+		namespace_splitting_idx = resolved_namespaced_path.indexOf(":"),
+		namespace = resolved_namespaced_path.slice(0, namespace_splitting_idx),
+		path = resolved_namespaced_path.slice(namespace_splitting_idx + 1)
+	return { namespace, path }
+}

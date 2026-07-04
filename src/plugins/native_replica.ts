@@ -58,7 +58,7 @@ export const nativeReplicaPluginSetup = (): EsbuildPluginSetup => {
 			const response = await fetch(path_url, { method: "GET" })
 			if (!response.ok) {
 				const message = `ERROR: network fetch response for url "${path_url.href}" was not ok (${response.status}). response header:\n${json_stringify(response.headers)}`
-				return { errors: [{ detail: message },] }
+				return { errors: [{ text: message }] }
 			}
 			const contents = await response.bytes()
 			// to mimic esbuild's native loader behavior, we don't pass the `args.pluginData` (even though, I'd like pass it).

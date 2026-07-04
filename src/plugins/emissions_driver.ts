@@ -10,7 +10,7 @@
 import { ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isArray, isNull, isString, type MaybePromiseLike, object_entries, pathToPosixPath, promise_all, promiseOutside, resolveAsUrl, resolvePathFactory, textDecoder, textEncoder } from "../deps.ts"
 import type { EsbuildMetafile, EsbuildOnEndCallback, EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup } from "../esbuild/strongtypes.ts"
 import type { EsbuildOutputFile } from "../esbuild/typedefs.ts"
-import { concatArrays, lowercaseMetafile, mergeMapArrays, normalizeMetafile } from "../funcdefs.ts"
+import { concatArrays, lowercaseMetafile, mergeMapArrays, normalizeMetafile, splitNamespacedPath } from "../funcdefs.ts"
 import type { OnEmitHandler, SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
 import type { BundledInputFile, ImportedEntity, OnEmitResult } from "../super/typedefs.ts"
@@ -271,8 +271,14 @@ const format_resolved_resource_registry = (registry: SuperBuildContext["resolved
 			text: `[format_resolved_resource_registry]: ${size_difference} resolved resources use the same name, but only differ in letter casing. `
 				+ `right now, super-build is not able to distinguish between the two (in order to achieve path name casing insensitivity), `
 				+ `so this problem will likely mess up your build. `
-				+ `if it's possible, you should change the name of the duplicate resources. see details for the conflicting resource names`,
-			detail: [...conflicting_keys],
+				+ `if it's possible, you should change the name of the duplicate resources. see the notes for the conflicting resource names:`,
+			notes: [...conflicting_keys].map((resolved_path) => {
+				const { path, namespace } = splitNamespacedPath(resolved_path)
+				return {
+					text: `conflicting key: "${resolved_path.toLowerCase()}"`,
+					location: { file: path, namespace: namespace },
+				}
+			}),
 		})
 	}
 
