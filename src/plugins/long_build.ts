@@ -39,6 +39,7 @@ export interface ImportEntity<K = any> {
 	key: K
 	path: string
 	with: Record<string, string>
+	external: boolean
 }
 
 export const ${LONGBUILD.RESOURCE_VAR_NAME}: Map<
@@ -241,16 +242,19 @@ export class LongBuildStep {
 	 * > so make sure to use the `"ts"` esbuild loader for it.
 	*/
 	public prepareLongBuildFileContent(): string {
-		const all_imports_this_build = [...this.resourceImports.entries()]
+		const all_imports_this_build = [...this.resourceImports]
 		const all_imports_js_str = all_imports_this_build.map(([importer_key, imports_arr]) => {
 			const imports_str_arr = imports_arr.map((import_entity) => {
 				const
-					{ key, path, with: with_attr = {} } = import_entity,
+					{ key, path, with: with_attr = {}, external = false } = import_entity,
 					key_str = json_stringify(key),
 					path_str = json_stringify(path),
-					with_str = json_stringify(with_attr)
+					with_str = json_stringify(with_attr),
+					external_str = json_stringify(external),
+					// to prevent resources marked as `external` from being discovered by esbuild, we don't wrap them around a dynamic `import(...)`.
+					import_statement = external ? path_str : `await import(${path_str})`
 				// return `import(${path_str}, { with: { importer: "" } })`
-				return `{ key: ${key_str}, path: await import(${path_str}), with: ${with_str} }`
+				return `{ key: ${key_str}, path: ${import_statement}, with: ${with_str}, external: ${external_str} }`
 			})
 			const imports_str = imports_str_arr.join(",\n\t")
 			const importer_key_str = json_stringify(importer_key)

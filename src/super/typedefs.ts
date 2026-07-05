@@ -5,7 +5,9 @@
 
 import type { AutoSuggestOrString, MaybePromiseOrNull } from "../deps.ts"
 import type { EsbuildLoaderType, EsbuildMetafileImportProps, EsbuildOnEndResult, EsbuildOutputsImportKind, EsbuildPartialMessage, OnLoadResult } from "../esbuild/strongtypes.ts"
+import type { longBuildPluginSetup } from "../plugins/long_build.ts"
 import type { EsbuildNativeResolver, nativeReplicaPluginSetup } from "../plugins/native_replica.ts"
+import type { SuperBuildContext } from "./build_context.ts"
 import type { SuperPluginBuild } from "./plugin_build.ts"
 
 
@@ -91,11 +93,23 @@ export interface OnTransformResult {
 	pluginData?: any
 
 	/** pass some arbitrary data from the transformation stage to the emit stage.
-	 * TODO: implement. I'll also need to strip away this field before passing the result to esbuild, otherwise it'll go maj fr fr.
+	 *
+	 * this feature is handled by {@link SuperBuildContext.resolvedResourceRegistry}.
 	*/
 	emitData?: any
 
-	// TODO: I'll add this later. also, will `key` be necessary? sure the `key` will be convenient, but the position within the array will also indicate the location of the import.
+	/** specify arbitrary resource imports that must be performed for this resource.
+	 *
+	 * while these resources will get bundled (via dynamic imports performed by {@link longBuildPluginSetup}, so long as they are not marked with `external: true`),
+	 * they (i.e. their output paths) won't get automatically incorporated into your {@link contents};
+	 * for that, you will have to use an {@link SuperPluginBuild.onEmit} hook to re-capture the output paths of the bundled imports specified here,
+	 * and then re-incorporate those output paths into your {@link OnEmitArgs.contents},
+	 * using the non-mutating {@link ImportEntity.key} trace which resource is being referenced by the {@link ImportedEntity.outputPath}.
+	 *
+	 * to skip an import from being bundled, you can either stay silent about it (i.e. not include it here),
+	 * or mark that import with `external: true`, so that it still gets passed to {@link OnEmitArgs.imports},
+	 * but will appear to esbuild as an external reference (and hence not resolved, nor bundled as an emitted output file).
+	*/
 	imports?: ImportEntity[]
 
 	/** if any fatal error(s) occur during the transformation, pass it as a return value so that the build gets immediately halted. */
@@ -155,11 +169,20 @@ export interface ImportEntity<K = any> {
 	/** associate a `with` import attribute to the import. */
 	with?: Record<string, string>
 
+	/** specify if this import should be marked as an external resource, so that it neither gets resolved, nor loaded/bundled as an output file.
+	 *
+	 * if you wish for your import's path to get resolved, but not loaded/bundled as a file, then you should either:
+	 * 1. set `external: false` and then capture {@link path} during the `onResolve` stage,
+	 *    followed by setting `external` to `true` in the returned `OnResolveResult`.
+	 * 2. set `external: true` and make sure that your {@link path} is pre-resolved within the transformation stage,
+	 *    by simply using {@link SuperPluginBuild.resolve | `build.resolve(...)`} to resolve its path in your plugin.
+	*/
+	external?: boolean
+
 	// will I need the information below?
 	// namespace?: string // specify a namespace for the loader to be used.
 	// pluginData?: any // specify any custom plugin data that should be used.
 	// kind: EsbuildOutputsImportKind // for now, it can only be a regular js dynamic import, since that is what the long-build performs.
-	// external?: boolean // TODO: enable this and then refactor the longbuild file that gets generated to skip these imports.
 }
 
 export type ImportedEntityKind = EsbuildOutputsImportKind | "user-import"

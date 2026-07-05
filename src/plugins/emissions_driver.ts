@@ -394,13 +394,12 @@ const parseLongBuildImportedEntities = async (
 
 			const file_imports: ImportedEntity[] = entities_to_import.map((entity) => {
 				// note: remember, `entity.path` is relative to the longbuild file, and not the `importer_output_path`.
-				return {
-					outputPath: resolvePath(longbuild_path, entity.path),
-					key: entity.key,
-					kind: "user-import", // this is our standard `kind` label for user imports that originate from the transformation stage.
-					with: entity.with,
-					external: false, // TODO: once I add `entity.external` as an option, this needs to be inherited from it.
-				}
+				// moreover, only non-external entities must go through the local-file output path resolution.
+				const
+					{ key, path, with: with_attr = {}, external = false } = entity,
+					abs_output_path = external ? path : resolvePath(longbuild_path, path),
+					kind = "user-import" // this is our standard `kind` label for user imports that originate from the transformation stage.
+				return { key, outputPath: abs_output_path, kind, with: with_attr, external }
 			})
 
 			return [importer_output_path, file_imports]
