@@ -14,7 +14,7 @@ import { concatArrays, lowercaseMetafile, mergeMapArrays, normalizeMetafile, spl
 import type { OnEmitHandler, SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
 import type { BundledInputFile, ImportedEntity, OnEmitResult } from "../super/typedefs.ts"
-import { EMIT_EMPTY, INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
+import { DELETE_ENTITY, INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
 import type { LongBuildController, longBuildPlugin } from "./long_build.ts"
 
 
@@ -543,14 +543,19 @@ const performOnEmitOnOutputFile = async (
 		// updating the emitted file `path` and `contents` from the `result`.
 		if (isNull(on_emit_result)) { continue }
 		if (on_emit_result.contents) {
-			if (on_emit_result.contents === EMIT_EMPTY) { }// TODO: implement output file deletion.
+			matched_file.contents = isString(on_emit_result.contents)
+				? textEncoder.encode(on_emit_result.contents)
+				: on_emit_result.contents
+		}
+		if (on_emit_result.path) {
+			// TODO: implement output file deletion.
+			// though, what will happen to the files that depend on the deleted files?
+			// should I simply delete this resource from the dependency graph and call it a day?
+			if (on_emit_result.path === DELETE_ENTITY) { }
 			else {
-				matched_file.contents = isString(on_emit_result.contents)
-					? textEncoder.encode(on_emit_result.contents)
-					: on_emit_result.contents
+				matched_file.path = on_emit_result.path
 			}
 		}
-		if (on_emit_result.path) { matched_file.path = on_emit_result.path }
 		if (on_emit_result.updateDependents) {
 			// TODO: handle this option after grouped topological dependency traversal has been implemented.
 		}
@@ -605,8 +610,9 @@ class DependencyGraphNode<ID = string, T = any> {
 			const
 				dependency_paths = imported_entities
 					// external resources do not contribute to dependency graph, as they themselves (the external resources) do not get emitted, nor do they go through the emission stage.
-					.filter((props) => { return !props.external })
-					.map((props) => { return props.outputPath }),
+					// also, while `props.outputPath` is guaranteed to be a `string` at this point (and cannot be the `DELETED_ENTITY` symbol), we still filter out that case just in case.
+					.filter((props) => { return !props.external && isString(props.outputPath) })
+					.map((props) => { return props.outputPath as string }),
 				node = new this<string>(output_path, dependency_paths)
 			return [output_path, node] satisfies [graph_id: string, graph_node: InstanceType<typeof this<string, T>>]
 		})

@@ -19,7 +19,16 @@ import type { SuperPluginBuild } from "./plugin_build.ts"
 export const INNER_PLUGIN_BUILD = Symbol()
 
 /** a return value of the {@link OnEmitResult.contents} that indicates that no file should be emitted for this resource. */
-export const EMIT_EMPTY = Symbol()
+export const DELETE_ENTITY = Symbol()
+
+/** a symbol assigned to an imported entity's {@link ImportedEntity.outputPath} (inside {@link OnEmitArgs.imports})
+ * that dictates that the imported entity was deleted (i.e. won't be emitted as a file).
+ *
+ * you can still acquire the original output path of the imported entity by referring to its {@link ImportedEntity.initialPath} field.
+ *
+ * fyi: {@link DELETED_ENTITY} === {@link DELETE_ENTITY}. or in other words: OBAMA = ILLUMINATI, CONFIRMED.
+*/
+export const DELETED_ENTITY = DELETE_ENTITY
 
 export interface OnTransformOptions {
 	filter: RegExp
@@ -198,10 +207,36 @@ export type ImportedEntityKind = EsbuildOutputsImportKind | "user-import"
 */
 export interface ImportedEntity<K = any> extends Pick<NonNullable<ImportEntity<K>>, "key" | "with"> {
 	/** the **absolute** output path of the resource/entity that is being imported.
+	 *
 	 * to convert it to a relative path with respect to the entity that imports this resource,
 	 * use the `relativePath` function from my `jsr:@oazmi/kitchensink/pathman` or `npm:@oazmi/kitchensink/pathman` libraries.
+	 *
+	 * if the output path is assigned a {@link DELETED_ENTITY} symbol, it means that it is not being emitted as file,
+	 * and that you should probably remove the import statement associated with it in your dependent entity's {@link OnEmitArgs.contents}
+	 * (or perhaps inline the imported entity's contents (but that's still a TODO feature)).
 	*/
-	outputPath: string
+	outputPath: string | typeof DELETED_ENTITY
+
+	/** if the imported entity was renamed during the emission stage, then its original (absolute) {@link outputPath} will get saved here.
+	 *
+	 * this is to aid you with modifying/renaming import paths within your dependent entity's {@link OnEmitArgs.contents},
+	 * when you cannot reliably use your {@link key} to identify the import statement corresponding to an imported entity.
+	 *
+	 * for instance, suppose your build emits a `./main.js` file that imports `./meow.worker.js`,
+	 * and then during the emission stage, suppose you renamed the `./meow.worker.js` output file to `./workers/meow.js`.
+	 * then, when `./main.js` enters the {@link SuperPluginBuild.onEmit | emission phase},
+	 * the {@link OnEmitArgs.imports | import field} corresponding to the `./workers/meow.js` file (formerly `./meow.worker.js`)
+	 * will have its {@link outputPath} set to `./workers/meow.js` (but as an absolute path),
+	 * while its {@link initialPath} will get assigned `./meow.worker.js` (again, as an absolute path),
+	 * so that you can scan the {@link OnEmitArgs.contents} of your `./main.js` file to find all references to `./meow.worker.js`,
+	 * and then replace those statements with the updated `./workers/meow.js` path.
+	 *
+	 * > [!note]
+	 * > this field is only assigned when the {@link OnEmitResult | emission stage result} of the dependency import changes the
+	 * > {@link OnEmitResult.path} something different from the original (case sensitive),
+	 * > or when {@link OnEmitResult.path} is set to be {@link DELETE_ENTITY}.
+	*/
+	initialPath?: string
 
 	/** indicates the kind of import that is being performed. all of these are inherited from esbuild metafile's
 	 * {@link EsbuildMetafileImportProps.kind | `kind` field}, with the exception of `"user-import"`,
@@ -303,10 +338,25 @@ export interface OnEmitArgs {
 }
 
 export interface OnEmitResult extends EsbuildOnEndResult {
-	/** provide an alternate path to place this resource. if a relative path is provided (which is what is recommended),
-	 * then this file will be placed relative to the output directory specified in the initial build options.
+	/** provide an alternate path to place this resource.
+	 * - if a relative path is provided (which is what is recommended),
+	 *   then this file will be placed relative to the output directory specified in the initial build options.
+	 * - if a special symbol {@link DELETE_ENTITY} is assigned to this field,
+	 *   then it will signal that this entity is to be destroyed (i.e. not emitted to the filesystem).
+	 *
+	 * > [!note]
+	 * > note that it is totally possible to delete an entity, but still have some {@link contents} assigned to it.
+	 * > this way, you should be able to read the contents of the "deleted" file later on inside on of the dependent entities.
+	 * >
+	 * > this can be useful when you would like to code a plugin that takes in inlined code (such as inlined js or css inside an html),
+	 * > then includes it in the bundle (by faking it as virtual files during resolutions/loading),
+	 * > and then deletes the emitted files corresponding to the inlined code blocks, while retaining the minified/bundled {@link contents},
+	 * > so that the original dependent entity (html file in this case) can read the minified/bundled {@link contents} and then re-incorporate them as inlined code.
+	 * >
+	 * > (TODO: though, right now, I don't currently give a global readonly access to the output files registry inside the {@link OnEmitCallback} function.
+	 * > I should probably add the registry as a second argument to the callback function.)
 	*/
-	path?: string
+	path?: string | typeof DELETE_ENTITY
 
 	/** if an alternate {@link path} is to be used, then should the dependents of this resource have their
 	 * {@link OnEmitArgs.imports} updated to reflect the new path of this resource?
@@ -314,12 +364,9 @@ export interface OnEmitResult extends EsbuildOnEndResult {
 	updateDependents?: boolean
 
 	/** the contents of the file after you've re-incorporated the imported/dependency links into it.
-	 *
 	 * if left `undefined`, then the original {@link OnEmitArgs.contents} will be used as its value.
-	 * and if {@link EMIT_EMPTY} was used, then it would indicate that this resource file should not be emitted
-	 * (i.e. it should be deleted, and never written onto your disk).
 	*/
-	contents?: typeof EMIT_EMPTY | string | Uint8Array<ArrayBuffer>
+	contents?: string | Uint8Array<ArrayBuffer>
 }
 
 /** this is your `onEmit` hook function that gets called,
