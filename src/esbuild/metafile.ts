@@ -3,7 +3,7 @@
  * @module
 */
 
-import { ensureRelativeDotSlash, isAbsolutePath, object_entries, object_fromEntries, object_keys, pathToPosixPath } from "../deps.ts"
+import { ensureRelativeDotSlash, isAbsolutePath, isNull, object_entries, object_fromEntries, object_keys, pathToPosixPath } from "../deps.ts"
 import { splitNamespacedPath } from "../funcdefs.ts"
 import type { SuperBuildContext } from "../super/build_context.ts"
 import type { BundledInputFile, ImportedEntity, OutputFileEntity, OutputFileEntityMap } from "../super/typedefs.ts"
@@ -123,11 +123,41 @@ export class Metafile implements MetafileConfig {
 			contents: esbuild_file.contents as Uint8Array<ArrayBuffer>,
 			inputs: this.getEsbuildInputs(output_path_lowercase),
 			// initially, the `imports` assigned have dirty lower cased `outputPath`s.
-			// the user must run the TODO: function that repairs the casing of these paths once they've added all output files.
+			// the user must run the `repairFileImportPaths` method to repair the casing of these paths once all output files have been added.
 			imports: this.getEsbuildImports(output_path_lowercase),
 		}
 		this.outputFileEntities.set(output_path_lowercase, file_entity)
 		return file_entity
+	}
+
+	/** this function is intended to run _after_ you have added **all** of your {@link EsbuildOutputFile | esbuild output files} via {@link addFile}.
+	 * what it does is that it repairs the {@link ImportedEntity.outputPath}s of your {@link OutputFileEntity.imports | output file entity's imports}
+	 * to match the original letter casing in its file name, as opposed to the lower case file path that is initially placed as by {@link getEsbuildImports}.
+	*/
+	public repairFileImportPaths(): void {
+		const
+			outputFileEntities = this.outputFileEntities,
+			warnings = this.warnings
+		for (const [output_path_key, file_entity] of outputFileEntities) {
+			file_entity.imports.forEach((import_props) => {
+				// recall that external resource imports do not have their import path lower cased, since there is no file associated with them.
+				// and hence there is no path to repair in such case.
+				if (import_props.external) { return }
+				const
+					use_initial_output_path = !isNull(import_props.initialPath),
+					import_output_path_key = (import_props.initialPath ?? import_props.outputPath as string).toLowerCase(),
+					import_file_entity = outputFileEntities.get(import_output_path_key)
+				if (!import_file_entity) {
+					warnings.push({ text: `[Metafile.repairFileImportPaths]: no file entity with the following path was ever added: "${import_output_path_key}".` })
+					return
+				}
+				const case_sensitive_output_path = (import_file_entity.initialPath ?? import_file_entity.outputPath as string)
+				// @ts-ignore: readonly for thee, but not mee.
+				if (use_initial_output_path) { import_props.initialPath = case_sensitive_output_path }
+				// @ts-ignore: I SAID: READONLY FOR THEE, BUT NOT MEE! - said dumbledore VERY CALMLY, fully composed, and totally not sleep deprieved.
+				else { import_props.outputPath = case_sensitive_output_path }
+			})
+		}
 	}
 
 	// public getFile(output_path_key: string): OutputFileEntity {
@@ -151,7 +181,7 @@ export class Metafile implements MetafileConfig {
 		for (const input_source_resolved_path of metadata.inputs) {
 			const bundled_file = resolvedResourceRegistry.get(input_source_resolved_path)
 			if (bundled_file) { bundled_files.push(bundled_file) }
-			else { warnings.push({ text: `[Metafile.getEsbuildInputs]: resource registry never encountered the resource: "${input_source_resolved_path}"` }) }
+			else { warnings.push({ text: `[Metafile.getEsbuildInputs]: resource registry never encountered the resource: "${input_source_resolved_path}".` }) }
 		}
 		return bundled_files
 	}
@@ -161,7 +191,10 @@ export class Metafile implements MetafileConfig {
 	 *
 	 * > [!important]
 	 * > this function performs a "dirty" scan of the imports which does not preserve the letter casing of the imports' {@link ImportedEntity.outputPath}.
-	 * > once all files have been added via {@link addFile}, you must run TODO: the function that repairs the casing on each import path.
+	 * > once all files have been added via {@link addFile}, you must run the {@link repairFileImportPaths} method to repair the casing on each import path.
+	 * >
+	 * > do note that the letter casing of `external` imports **is** preserved, as they are **not** associated with an esbuild input file,
+	 * > so there's no way to retrieve the original letter casing of those imports (and hence is why it gets preserved).
 	*/
 	protected getEsbuildImports(output_path_key: string): Array<ImportedEntity<string[]>> {
 		output_path_key = output_path_key.toLowerCase()
