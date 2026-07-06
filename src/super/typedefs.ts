@@ -224,9 +224,9 @@ export interface OutputFileEntity extends Readonly<
 
 /** this dictionary maps an output file's **original** absolute output path to its {@link OutputFileEntity} object.
  *
- * the keys of this map never change, even after an output file has been renamed via {@link OnEmitResult.path}.
- * the way to acquire a given {@link OutputFileEntity}'s original output path is by simply performing:
- * `original_path = file_entity.initialPath ?? file_entity.outputPath`.
+ * the keys of this map are always in **lower casing**, and never change, even after an output file has been renamed via {@link OnEmitResult.path}.
+ * the way to acquire a given {@link OutputFileEntity}'s original output path key is by simply performing:
+ * `original_path_key = (file_entity.initialPath ?? file_entity.outputPath).toLowerCase()`.
 */
 export type OutputFileEntityMap = Map<string, OutputFileEntity>
 
@@ -321,6 +321,9 @@ export interface OnEmitOptions {
 	 *   then only the emitted file corresponding to entrypoint `B` will be matched, and not `A` (since `A` does not incorporate the dependency file `Z`).
 	*/
 	inputs?: Array<OnEmitOptions_InputFilter>
+
+	// TODO: should I also add an `imports` filter as an option here? I think it'll be useful under certain cases,
+	// although it won't provide anything that cannot already be achieved by capturing all emitted resources and then checking if an import is found.
 }
 
 // TODO: it'll be cool if the return value of the `onEmit` callback can declare a different output directory path,
