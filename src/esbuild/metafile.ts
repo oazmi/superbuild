@@ -128,9 +128,28 @@ export class Metafile implements MetafileConfig {
 		})
 	}
 
-	// public renameFile() {
+	/** find the file entity corresponding to the given absolute output path. you won't receive entities associated with external paths/references. */
+	public getFile(output_path_key: string): OutputFileEntity | undefined {
+		output_path_key = output_path_key.toLowerCase()
+		const file_entity = this.outputFileEntities.get(output_path_key)
+		if (file_entity) { return file_entity }
+		this.warnings.push({ text: `[Metafile.getFile]: no file entity with the following path key was ever added: "${output_path_key}".` })
+		// if an exact lower casing match is not found, we'll try lower casing all `outputFileEntities` keys, and maybe then we'll get a hit.
+		// const matching_path_key = [...outputFileEntities.keys()].find((path_key) => { return path_key.toLowerCase() === output_path_key })
+		// if (!isNull(matching_path_key)) { return outputFileEntities.get(matching_path_key)! }
+	}
 
-	// }
+	/** find all file entities that incorporate (i.e. originate from) certain namespaced source files/resources into their bundled form. */
+	public findFileFromSources(
+		predicate_fn: (file_sources: Array<{ namespace: string, path: string }>) => boolean,
+	): Array<OutputFileEntity> {
+		const file_entity_matches: Array<OutputFileEntity> = []
+		this.outputFileEntities.forEach((file_entity) => {
+			const file_sources = file_entity.inputs.map(({ namespace, path }) => ({ namespace, path }))
+			if (predicate_fn(file_sources)) { file_entity_matches.push(file_entity) }
+		})
+		return file_entity_matches
+	}
 
 	/** normalizes an esbuild metafile to use namespaced paths (`${namespace}:${resolved_path}`) for resolved paths,
 	 * and absolute paths for output file paths.

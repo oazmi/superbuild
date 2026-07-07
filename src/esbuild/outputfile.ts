@@ -1,7 +1,7 @@
 import { array_isEmpty, type Require } from "../deps.ts"
 import type { SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
-import type { BundledInputFile, ImportedEntity, OnEmitResult, OnTransformResult } from "../super/typedefs.ts"
+import type { BundledInputFile, ImportedEntity, OnEmitOptions, OnEmitResult, OnTransformResult } from "../super/typedefs.ts"
 import type { Metafile } from "./metafile.ts"
 import type { EsbuildOutputFile } from "./typedefs.ts"
 
@@ -147,5 +147,45 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 		}
 
 		return imported_entities
+	}
+
+	public matchOnEmitFilter(options: OnEmitOptions): boolean {
+		const
+			{ filter, inputs: input_filters } = options,
+			output_path = this.outputPath
+		// test the output file name filter first.
+		// the reason why `this.initialPath` is not used is because it is impossible for a file entity to be renamed before it goes through the `onEmit` stage.
+		// hence, `this.initialPath` is guaranteed to be `undefined`.
+		if (!filter.test(output_path)) { return false }
+
+		// next we test if each input filter has been satisfied by at least one element in `this.inputs`
+		// (which is the list of all bundled source files which were included in the current file).
+		const bundled_files = this.inputs
+		for (const input_filter of (input_filters ?? [])) {
+			const { filter, namespace, loader, transformLoader } = input_filter
+			const at_least_one_file_satisfies_conditions = bundled_files.some((bundled_file) => {
+				return filter.test(bundled_file.path)
+					&& (namespace ? namespace === bundled_file.namespace : true)
+					&& (loader ? loader === bundled_file.loader : true)
+					&& (transformLoader ? transformLoader === bundled_file.transformLoader : true)
+			})
+			if (!at_least_one_file_satisfies_conditions) { return false }
+		}
+
+		// if we've made it to here, then this entity has passed the filter test, and may proceed to the `onEmit` callback hook.
+		return true
+	}
+
+	/** rename this file. you can either provide an absolute path, or a relative path.
+	 * relative paths will be resolved with respect to the `cwd` or esbuild's `absWorkingDir`.
+	*/
+	public rename(new_output_path: string) {
+		// save the original output path into `initialPath` if it has never been assigned before.
+		this.initialPath ??= this.outputPath
+		this.outputPath = this.metafile.resolvePath(new_output_path)
+	}
+
+	public writeToFs() {
+		// TODO: should I abstract away the write function and have it passed as an arg? or should I just use my use crossenv's write function?
 	}
 }
