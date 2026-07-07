@@ -3,10 +3,10 @@
  * @module
 */
 
-import { ensureRelativeDotSlash, isAbsolutePath, isNull, object_entries, object_fromEntries, object_keys, pathToPosixPath } from "../deps.ts"
+import { ensureRelativeDotSlash, isAbsolutePath, object_entries, object_fromEntries, object_keys, pathToPosixPath } from "../deps.ts"
 import { splitNamespacedPath } from "../funcdefs.ts"
 import type { SuperBuildContext } from "../super/build_context.ts"
-import type { BundledInputFile, ImportedEntity, OutputFileEntity, OutputFileEntityMap } from "../super/typedefs.ts"
+import { OutputFileEntity, type OutputFileEntityMap } from "./outputfile.ts"
 import type { EsbuildMetafile, EsbuildMetafileImportProps, EsbuildPartialMessage } from "./strongtypes.ts"
 import type { EsbuildOutputFile } from "./typedefs.ts"
 
@@ -70,9 +70,9 @@ interface MetafileConfig {
 
 export class Metafile implements MetafileConfig {
 	protected readonly value: EsbuildMetafile
-	protected readonly inputs: Map<string, EsbuildMetafile["inputs"][string]>
-	protected readonly outputs: Map<string, FormattedMetafileOutputProps>
-	protected outputFileEntities: OutputFileEntityMap = new Map()
+	public readonly inputs: Map<string, EsbuildMetafile["inputs"][string]>
+	public readonly outputs: Map<string, FormattedMetafileOutputProps>
+	public outputFileEntities: OutputFileEntityMap = new Map()
 
 	/** a copy of the {@link SuperBuildContext.resolvedResourceRegistry}, where all keys use lower case characters.
 	 * this is extremely important, as we've internally standardized to using only lower casing for namespaced resolved paths,
@@ -84,7 +84,7 @@ export class Metafile implements MetafileConfig {
 	public resolvePath: (path: string) => string
 
 	/** holds all warnings that have occurred during method calls. */
-	protected warnings: EsbuildPartialMessage[] = []
+	public warnings: EsbuildPartialMessage[] = []
 
 	constructor(esbuild_metafile: EsbuildMetafile, config: MetafileConfig) {
 		const { resolvedResourceRegistry, resolvePath } = config
@@ -112,121 +112,19 @@ export class Metafile implements MetafileConfig {
 
 	public addFile(esbuild_file: EsbuildOutputFile): OutputFileEntity {
 		const
-			output_path = this.resolvePath(esbuild_file.path),
-			output_path_lowercase = output_path.toLowerCase(),
-			metadata = this.outputs.get(output_path_lowercase)
-		if (!metadata) { throw Error(`[Metafile.addFile]: no matching metadata for the file with the path "${output_path_lowercase}" could be found.`) }
-		const file_entity: OutputFileEntity = {
-			outputPath: output_path,
-			initialPath: undefined,
-			hash: esbuild_file.hash,
-			contents: esbuild_file.contents as Uint8Array<ArrayBuffer>,
-			inputs: this.getEsbuildInputs(output_path_lowercase),
-			// initially, the `imports` assigned have dirty lower cased `outputPath`s.
-			// the user must run the `repairFileImportPaths` method to repair the casing of these paths once all output files have been added.
-			imports: this.getEsbuildImports(output_path_lowercase),
-		}
+			file_entity = new OutputFileEntity(this, esbuild_file),
+			output_path_lowercase = (file_entity.initialPath ?? file_entity.outputPath).toLowerCase()
 		this.outputFileEntities.set(output_path_lowercase, file_entity)
 		return file_entity
 	}
 
 	/** this function is intended to run _after_ you have added **all** of your {@link EsbuildOutputFile | esbuild output files} via {@link addFile}.
-	 * what it does is that it repairs the {@link ImportedEntity.outputPath}s of your {@link OutputFileEntity.imports | output file entity's imports}
-	 * to match the original letter casing in its file name, as opposed to the lower case file path that is initially placed as by {@link getEsbuildImports}.
+	 * what it does is that it simply calls the {@link OutputFileEntity.scanEsbuildImports} method of each {@link outputFileEntities | registered file},
+	 * so that they can discover the file entity associated which each of their esbuild-based imports.
 	*/
-	public repairFileImportPaths(): void {
-		const
-			outputFileEntities = this.outputFileEntities,
-			warnings = this.warnings
-		for (const [output_path_key, file_entity] of outputFileEntities) {
-			file_entity.imports.forEach((import_props) => {
-				// recall that external resource imports do not have their import path lower cased, since there is no file associated with them.
-				// and hence there is no path to repair in such case.
-				if (import_props.external) { return }
-				const
-					use_initial_output_path = !isNull(import_props.initialPath),
-					import_output_path_key = (import_props.initialPath ?? import_props.outputPath as string).toLowerCase(),
-					import_file_entity = outputFileEntities.get(import_output_path_key)
-				if (!import_file_entity) {
-					warnings.push({ text: `[Metafile.repairFileImportPaths]: no file entity with the following path was ever added: "${import_output_path_key}".` })
-					return
-				}
-				const case_sensitive_output_path = (import_file_entity.initialPath ?? import_file_entity.outputPath as string)
-				// @ts-ignore: readonly for thee, but not mee.
-				if (use_initial_output_path) { import_props.initialPath = case_sensitive_output_path }
-				// @ts-ignore: I SAID: READONLY FOR THEE, BUT NOT MEE! - said dumbledore VERY CALMLY, fully composed, and totally not sleep deprieved.
-				else { import_props.outputPath = case_sensitive_output_path }
-			})
-		}
-	}
-
-	// public getFile(output_path_key: string): OutputFileEntity {
-
-	// }
-
-	/** scans esbuild's metafile outputs to find the input sources bundled into a certain output file (`output_path_key`).
-	 * the input sources are presented with resolved path information, namespace, `onEmit` information,
-	 * and other additional information acquired from the resource's resolver, loader, and transformer results.
-	 * (the collection of this information is stored in {@link resolvedResourceRegistry}, acquired from the {@link SuperBuildContext}.)
-	*/
-	protected getEsbuildInputs(output_path_key: string): Array<BundledInputFile> {
-		output_path_key = output_path_key.toLowerCase()
-		const
-			warnings = this.warnings,
-			resolvedResourceRegistry = this.resolvedResourceRegistry,
-			metadata = this.outputs.get(output_path_key)
-		if (!metadata) { throw Error(`[Metafile.getEsbuildInputs]: no matching metadata for the file with the path "${output_path_key}" could be found.`) }
-		// acquire the list of all bundled files which were included in the current output resource, that can be traced back from the resource registry.
-		const bundled_files: BundledInputFile[] = []
-		for (const input_source_resolved_path of metadata.inputs) {
-			const bundled_file = resolvedResourceRegistry.get(input_source_resolved_path)
-			if (bundled_file) { bundled_files.push(bundled_file) }
-			else { warnings.push({ text: `[Metafile.getEsbuildInputs]: resource registry never encountered the resource: "${input_source_resolved_path}".` }) }
-		}
-		return bundled_files
-	}
-
-	/** scans esbuild's metafile outputs to find all file imports performed by a certain output file (`output_path_key`).
-	 * these only include entity imports found by esbuild natively (js imports, css imports, etc...), and not long-build plugin based imports.
-	 *
-	 * > [!important]
-	 * > this function performs a "dirty" scan of the imports which does not preserve the letter casing of the imports' {@link ImportedEntity.outputPath}.
-	 * > once all files have been added via {@link addFile}, you must run the {@link repairFileImportPaths} method to repair the casing on each import path.
-	 * >
-	 * > do note that the letter casing of `external` imports **is** preserved, as they are **not** associated with an esbuild input file,
-	 * > so there's no way to retrieve the original letter casing of those imports (and hence is why it gets preserved).
-	*/
-	protected getEsbuildImports(output_path_key: string): Array<ImportedEntity<string[]>> {
-		output_path_key = output_path_key.toLowerCase()
-		const
-			warnings = this.warnings,
-			metadata = this.outputs.get(output_path_key)
-		if (!metadata) { throw Error(`[Metafile.getImports]: no matching metadata for the file with the path "${output_path_key}" could be found.`) }
-		return metadata.imports.map((import_props) => {
-			// here, we find the original namespaced resolved path of the file that resulted in the `import_output_path` file.
-			// since there could be multiple `inputs` that resulted in the creation of the file at `import_output_path`,
-			// we set the `key` to be an array of all `inputs`.
-			const
-				{ path: import_output_path, kind, external } = import_props,
-				import_sources = this.outputs.get(import_output_path)?.inputs
-			if (!external && (!import_sources || import_sources.length <= 0)) {
-				// TODO: under this scenario, I can technically still construct a `key` if I were to inspect the `imports` of the `outputPath`,
-				// and then trace which of _its_ inputs correspond to this `import_output_path`,
-				// but that's just too convoluted and it'll still require a bunch of guessing, at which point it will not be worth the effort.
-				warnings.push({
-					text: `[Metafile.getImports]: expected import file to be made out of at least one input resource. `
-						+ `but worry not, as this could happen when the emitted file is just a re-exporting chunk file.`,
-					location: { file: import_output_path },
-				})
-			}
-			return {
-				// IMPORTANT: the outputPath assigned below is the lower cased output file path.
-				// it'll need to be updated into the correct casing later on.
-				outputPath: import_output_path,
-				key: [...(import_sources ?? [])],
-				kind,
-				external,
-			}
+	public scanEsbuildImports(): void {
+		this.outputFileEntities.forEach((file_entity) => {
+			file_entity.scanEsbuildImports()
 		})
 	}
 

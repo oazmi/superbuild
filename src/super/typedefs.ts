@@ -197,39 +197,6 @@ export interface ImportEntity<K = any> {
 
 export type ImportedEntityKind = EsbuildOutputsImportKind | "user-import"
 
-export interface OutputFileEntity extends Readonly<
-	& Require<Pick<EsbuildOutputFile, "contents" | "hash">, "contents">
-	& Pick<ImportedEntity, "outputPath" | "initialPath">
-> {
-	/** the **absolute** output path of this resource entity.
-	 * if the output path is assigned a {@link DELETED_ENTITY} symbol, it means that it is not being emitted as file.
-	*/
-	readonly outputPath: string | typeof DELETED_ENTITY
-
-	/** if this resource entity was renamed during the {@link SuperPluginBuild.onEmit, emission stage},
-	 * then its original (absolute) {@link outputPath} will get saved here.
-	*/
-	readonly initialPath?: string
-
-	/** an array of metadata on the loaded input files that were bundled into _this_ physical output file entity. */
-	readonly inputs: Array<Readonly<BundledInputFile>>
-
-	/** an array of metadata on the output files that are imported by _this_ file entity during runtime.
-	 *
-	 * each of these is basically associated with a js (`import { x, y, z } from "abc"`), css (`@import url("./blahblah.css")`),
-	 * or user-import (i.e. {@link OnTransformResult.imports}) statement.
-	*/
-	readonly imports: Array<Readonly<ImportedEntity>>
-}
-
-/** this dictionary maps an output file's **original** absolute output path to its {@link OutputFileEntity} object.
- *
- * the keys of this map are always in **lower casing**, and never change, even after an output file has been renamed via {@link OnEmitResult.path}.
- * the way to acquire a given {@link OutputFileEntity}'s original output path key is by simply performing:
- * `original_path_key = (file_entity.initialPath ?? file_entity.outputPath).toLowerCase()`.
-*/
-export type OutputFileEntityMap = Map<string, OutputFileEntity>
-
 /** a description of an entity that is imported by an output file (post-build, during the emission stage).
  *
  * - for user-specified `imports` performed in the transformation stage ({@link OnTransformResult}), the {@link key} will be supplied by the user,
