@@ -7,7 +7,7 @@ export { array_isEmpty, console_log, date_now, dom_clearTimeout, dom_setTimeout,
 export { bind_array_push } from "@oazmi/kitchensink/binder"
 export { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv"
 export { crc32 } from "@oazmi/kitchensink/cryptoman"
-export { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, fileUrlToLocalPath, getUriScheme, isAbsolutePath, parseFilepathInfo, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman"
+export { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, fileUrlToLocalPath, getUriScheme, isAbsolutePath, parseFilepathInfo, pathToPosixPath, relativePath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 export { promiseOutside, promiseTimeout } from "@oazmi/kitchensink/promiseman"
 export { escapeLiteralStringForRegex } from "@oazmi/kitchensink/stringman"
 export { isArray, isFunction, isRecord, isString } from "@oazmi/kitchensink/struct"

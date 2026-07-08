@@ -8,15 +8,15 @@
 */
 
 import { array_isEmpty, ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isArray, isNull, type MaybePromiseLike, pathToPosixPath, promise_all, promiseOutside, resolveAsUrl, resolvePathFactory, textDecoder } from "../deps.ts"
+import { Metafile } from "../esbuild/metafile.ts"
+import type { ImportedEntityNode, OutputFileEntity } from "../esbuild/outputfile.ts"
 import type { EsbuildMetafile, EsbuildOnEndCallback, EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup } from "../esbuild/strongtypes.ts"
 import { concatArrays } from "../funcdefs.ts"
 import type { SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
-import type { ImportedEntity, OnEmitResult } from "../super/typedefs.ts"
+import type { OnEmitResult } from "../super/typedefs.ts"
 import { INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
 import type { LongBuildController, longBuildPlugin } from "./long_build.ts"
-import { Metafile } from "../esbuild/metafile.ts"
-import { type ImportedEntityNode, OutputFileEntity } from "../esbuild/outputfile.ts"
 
 
 export interface EmissionsDriverPluginSetupConfig {
@@ -191,8 +191,6 @@ const findLongBuildFile = (ctx: EmissionDriverContext): OutputFileEntity | undef
 	return longbuild_file
 }
 
-type ParseImportedEntities = Map<string, ImportedEntity[]>
-
 /** parses the long-build plugin's output js file to discover additional user-made imports (specified during the transformation stage),
  * and then adds them to their respective importer's {@link OutputFileEntity}.
 */
@@ -218,7 +216,7 @@ const incorporateLongBuildImportedEntities = async (
 		importer_resolved_path = importer_resolved_path.toLowerCase()
 		const entities_using_importer_as_input_source = metafile.findFileFromSources((input_sources) => {
 			const entity_uses_importer_as_source = input_sources.some(({ path, namespace }) => {
-				return (path + ":" + namespace) === importer_resolved_path
+				return (namespace + ":" + path).toLowerCase() === importer_resolved_path
 			})
 			return entity_uses_importer_as_source
 		})

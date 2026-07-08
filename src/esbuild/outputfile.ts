@@ -1,4 +1,4 @@
-import { array_isEmpty, isNull, isString, textEncoder, type Require } from "../deps.ts"
+import { array_isEmpty, isNull, isString, relativePath, textEncoder, type Require } from "../deps.ts"
 import type { OnEmitHandler, SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
 import type { BundledInputFile, ImportedEntity, OnEmitOptions, OnEmitResult, OnTransformResult } from "../super/typedefs.ts"
@@ -228,6 +228,23 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 		// save the original output path into `initialPath` if it has never been assigned before.
 		this.initialPath ??= this.outputPath
 		this.outputPath = this.metafile.resolvePath(new_output_path)
+	}
+
+	/** convert an output file entity to an esbuild-compatible {@link EsbuildOutputFile | output file description}.
+	 *
+	 * (honestly, I don't see myself using it, and if we're overloading esbuild anyway, why don't we overload the `OutputFile`
+	 * interface to include new fields, such as `write` and `external`, etc...?)
+	*/
+	public toEsbuildOutputFile(outdir?: string): Require<EsbuildOutputFile, "path" | "contents"> | undefined {
+		if (!this.write) { return undefined }
+		const metafile = this.metafile
+		outdir = metafile.resolvePath(outdir ?? "./")
+		const relative_path = relativePath(this.outputPath, outdir) // TODO: letter casing inconsistency can pose and issue here.
+		return {
+			path: relative_path,
+			hash: this.hash,
+			contents: this.contents,
+		}
 	}
 
 	public writeToFs() {
