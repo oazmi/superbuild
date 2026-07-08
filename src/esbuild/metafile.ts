@@ -134,9 +134,6 @@ export class Metafile implements MetafileConfig {
 		const file_entity = this.outputFileEntities.get(output_path_key)
 		if (file_entity) { return file_entity }
 		this.warnings.push({ text: `[Metafile.getFile]: no file entity with the following path key was ever added: "${output_path_key}".` })
-		// if an exact lower casing match is not found, we'll try lower casing all `outputFileEntities` keys, and maybe then we'll get a hit.
-		// const matching_path_key = [...outputFileEntities.keys()].find((path_key) => { return path_key.toLowerCase() === output_path_key })
-		// if (!isNull(matching_path_key)) { return outputFileEntities.get(matching_path_key)! }
 	}
 
 	/** find all file entities that incorporate (i.e. originate from) certain namespaced source files/resources into their bundled form. */

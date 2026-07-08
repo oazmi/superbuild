@@ -3,8 +3,7 @@
  * @module
 */
 
-import { bind_array_push, console_log, crc32, date_now, dom_clearTimeout, dom_setTimeout, ensureRelativeDotSlash, isAbsolutePath, isArray, isString, math_max, object_entries, object_fromEntries, pathToPosixPath } from "./deps.ts"
-import type { EsbuildMetafile } from "./esbuild/strongtypes.ts"
+import { bind_array_push, console_log, crc32, date_now, dom_clearTimeout, dom_setTimeout, isArray, isString, math_max, object_entries } from "./deps.ts"
 
 export const concatArrays = <T>(arr1?: Array<T>, arr2?: Array<T>): Array<T> | undefined => {
 	return (!arr1 && !arr2) ? undefined
@@ -62,89 +61,6 @@ export const generateUuid = (segments = 1, current_time?: number) => {
 		return uuid_segment.toString(16).padStart(8, "0")
 	})
 	return crc32_segments.join("-")
-}
-
-// regex for detecting if a path is an absolute windows path. copied from `@oazmi/kitchensink/pathman`.
-const windows_absolute_path_regex = /^[a-z]\:[\/\\]/i
-
-/** normalize an esbuild resolved file path so that it:
- * - uses posix `"/"` directory separators.
- * - always has a leading `"./"` for relative paths.
- * - is always in the `${namespace}:${path}` format, even when `namespace === "file".`
-*/
-const normalize_esbuild_filepath = (path: string): string => {
-	const is_local_path = !path.includes(":") || windows_absolute_path_regex.test(path)
-	return is_local_path
-		? "file:" + normalize_local_filepath(path)
-		: path
-}
-
-const normalize_local_filepath = (path: string): string => {
-	const is_abs_path = isAbsolutePath(path)
-	return pathToPosixPath(is_abs_path ? path : ensureRelativeDotSlash(path))
-}
-
-export const normalizeMetafile = (esbuild_metafile: EsbuildMetafile): EsbuildMetafile => {
-	let { inputs, outputs } = structuredClone(esbuild_metafile) // we will be mutating directly, hence the need for a clone.
-
-	inputs = object_fromEntries(object_entries(inputs).map(([resolved_path, props]) => {
-		// resolved path name of this input file.
-		resolved_path = normalize_esbuild_filepath(resolved_path)
-		// direct dependencies of this input file as resolved paths.
-		props.imports = props.imports.map((props) => {
-			props.path = normalize_esbuild_filepath(props.path)
-			return props
-		})
-		return [resolved_path, props]
-	}))
-
-	outputs = object_fromEntries(object_entries(outputs).map(([output_path, props]) => {
-		// path name of the output file (including the path to the `outdir` relative to the `cwd` or `absWorkingDir`).
-		output_path = normalize_local_filepath(output_path)
-		// list of linked output files that are referenced by this resource (but not bundled into it).
-		// even though the import paths are relative, they are relative to the `cwd` or `absWorkingDir`,
-		// and not relative to the `pathname`.
-		props.imports = props.imports.map((props) => {
-			props.path = normalize_local_filepath(props.path)
-			return props
-		})
-		// list of files (as resolved paths) that were bundled into this resource.
-		props.inputs = object_fromEntries(object_entries(props.inputs).map(([resolved_path, props]) => {
-			return [normalize_esbuild_filepath(resolved_path), props]
-		}))
-		// entrypoint's resolved path corresponding to this output resource.
-		if (props.entryPoint) { props.entryPoint = normalize_esbuild_filepath(props.entryPoint) }
-		return [output_path, props]
-	}))
-
-	return { inputs, outputs }
-}
-
-/** lower the casing of an esbuild metafile's namespaced resolved paths,
- * to ensure that there won't be any casing conflicts when searching for a particular resource.
- * however, the casing on the output file names (keyof {@link EsbuildMetafile.outputs} and
- * `EsbuildMetafile.outputs[string].imports[string].path`) won't be affected.
-*/
-export const lowercaseMetafile = (esbuild_metafile: EsbuildMetafile): EsbuildMetafile => {
-	let { inputs, outputs } = structuredClone(esbuild_metafile) // we will be mutating directly, hence the need for a clone.
-
-	inputs = object_fromEntries(object_entries(inputs).map(([resolved_path, props]) => {
-		props.imports = props.imports.map((props) => {
-			props.path = props.path.toLowerCase()
-			return props
-		})
-		return [resolved_path.toLowerCase(), props]
-	}))
-
-	outputs = object_fromEntries(object_entries(outputs).map(([output_path, props]) => {
-		props.inputs = object_fromEntries(object_entries(props.inputs).map(([resolved_path, props]) => {
-			return [resolved_path.toLowerCase(), props]
-		}))
-		if (props.entryPoint) { props.entryPoint = props.entryPoint.toLowerCase() }
-		return [output_path, props]
-	}))
-
-	return { inputs, outputs }
 }
 
 export const splitNamespacedPath = (resolved_namespaced_path: string): { namespace: string, path: string } => {

@@ -84,6 +84,11 @@ export class LongBuildController {
 	*/
 	public readonly depsFilename: string
 
+	/** the namespace used by the {@link longBuildPlugin}.
+	 * it is a computed value that evaluates to `oazmi-superbuild-long_build-plugin-${uuid}`.
+	*/
+	public readonly pluginNamespace: string
+
 	/** the current build/recursion number. it starts with zero, and it is used for indicating the filename of the current "long build" file. */
 	public readonly buildNumber: number
 
@@ -115,6 +120,7 @@ export class LongBuildController {
 		this.uuid = uuid
 		this.baseFilename = `.(${uuid}).js`
 		this.depsFilename = `deps.(${uuid}).js`
+		this.pluginNamespace = `oazmi-superbuild-long_build-plugin-${uuid}`
 		this.remainingFilesCounter = 0
 		this.buildNumber = -1
 		this.incrementBuild()
@@ -310,7 +316,7 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 		controller = config.controller,
 		longbuild_base_filename = controller.baseFilename,
 		longbuild_deps_filename = controller.depsFilename,
-		plugin_namespace = `oazmi-superbuild-long_build-plugin-${controller.uuid}`
+		plugin_namespace = controller.pluginNamespace
 
 	return (build: EsbuildPluginBuild | SuperPluginBuild) => {
 		const
