@@ -12,7 +12,6 @@ import type { EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildP
 import { cancelableDelayedPromiseResolver, generateUuid } from "../funcdefs.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
 import type { ImportEntity } from "../super/typedefs.ts"
-import { INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
 
 
 const enum LONGBUILD {
@@ -320,11 +319,9 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 
 	return (build: EsbuildPluginBuild | SuperPluginBuild) => {
 		const
+			sbuild = build as SuperPluginBuild, // I can't think of a better way for annotating `build` as a `SuperPluginBuild` without getting a bunch of type errors.
 			filter = RegExp(escapeLiteralStringForRegex(longbuild_base_filename) + "$"),
-			deps_file_filter = RegExp(escapeLiteralStringForRegex(longbuild_deps_filename) + "$"),
-			base_plugin_build = INNER_PLUGIN_BUILD in build
-				? build[INNER_PLUGIN_BUILD]
-				: build
+			deps_file_filter = RegExp(escapeLiteralStringForRegex(longbuild_deps_filename) + "$")
 
 		build.onResolve({ filter: /.*/ }, (args: OnResolveArgs) => {
 			// TODO: I believe `<stdin>` does not go through any `onResolve`, and jumps straight to `onLoad`. so, we must account for not decrementing the counter when it is `<stdin>`.
@@ -355,17 +352,11 @@ export const longBuildPluginSetup = (config: LongBuildPluginSetupConfig): Esbuil
 			return { contents, loader: "ts", resolveDir: "./", warnings }
 		})
 
-		// TODO: the very first action that needs to take place even before the `emissionsDriverPlugin` starts performing `onEmit` callbacks,
-		// is to parse the long-build's file contents and then store it to the `SuperBuildContext`.
-		// either that, or we can also modify the `result.outputFiles` over here to push the parsed `imports` into them.
-		// (although esbuild's `imports` format differs from mine, so it will cause issues, so it might be best to leave it up to the emissions driver to take care of it.)
-		base_plugin_build.onEnd(async (result) => {
-			// const longbuild_files = result.outputFiles?.filter((file) => { return file.path.endsWith(longbuild_base_filename) }) ?? []
-			// console.assert(longbuild_files.length === 1)
-			// for (const longbuild_file of longbuild_files) {
-			// 	console.log(await controller.parseLongBuildFileContent(longbuild_file.text))
-			// }
-		})
+		// long build file(s) should not be emitted into the filesystem.
+		sbuild.onEmit({
+			filter: /.*/,
+			inputs: [{ filter: /.*/, namespace: plugin_namespace }],
+		}, (args) => { return { write: false } })
 	}
 }
 

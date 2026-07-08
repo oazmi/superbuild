@@ -26,7 +26,7 @@ export class SuperPlugin implements EsbuildPlugin {
 	#ctx: SuperBuildContext
 
 	public name: string
-	public setup: (build: EsbuildPluginBuild) => MaybePromise<void>
+	public setup: (build: EsbuildPluginBuild | SuperPluginBuild) => MaybePromise<void>
 
 	constructor(ctx: SuperBuildContext, base_plugin: EsbuildPlugin) {
 		this.#basePlugin = base_plugin

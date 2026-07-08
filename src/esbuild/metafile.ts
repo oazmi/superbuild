@@ -3,10 +3,10 @@
  * @module
 */
 
-import { ensureRelativeDotSlash, isAbsolutePath, object_entries, object_fromEntries, object_keys, pathToPosixPath } from "../deps.ts"
+import { ensureFile, ensureRelativeDotSlash, identifyCurrentRuntime, isAbsolutePath, object_entries, object_fromEntries, object_keys, pathToPosixPath, writeFile } from "../deps.ts"
 import { splitNamespacedPath } from "../funcdefs.ts"
 import type { SuperBuildContext } from "../super/build_context.ts"
-import { OutputFileEntity, type OutputFileEntityMap } from "./outputfile.ts"
+import { OutputFileEntity, type OutputFileEntityMap, type WriteFileFn } from "./outputfile.ts"
 import type { EsbuildMetafile, EsbuildMetafileImportProps, EsbuildPartialMessage } from "./strongtypes.ts"
 import type { EsbuildOutputFile } from "./typedefs.ts"
 
@@ -159,6 +159,22 @@ export class Metafile implements MetafileConfig {
 			graph.set(entity, new Set(dependencies))
 		}
 		return graph
+	}
+
+	/** write all output file entities (those with `entity.write !== false`) to the filesystem. */
+	public async writeFiles(): Promise<void> {
+		const
+			current_runtime = identifyCurrentRuntime(),
+			write_file_fn: WriteFileFn = async (file_path, data) => {
+				await ensureFile(current_runtime, file_path)
+				await writeFile(current_runtime, file_path, data)
+			}
+		const promises = [...this.outputFileEntities].map(async ([output_path_key, entity]): Promise<void> => {
+			const is_external_entity = "externalPath" in entity
+			if (is_external_entity) { return }
+			return entity.writeFile(write_file_fn)
+		})
+		await Promise.all(promises)
 	}
 
 	/** normalizes an esbuild metafile to use namespaced paths (`${namespace}:${resolved_path}`) for resolved paths,

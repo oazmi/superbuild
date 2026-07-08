@@ -243,7 +243,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 		this.ctx.onTransformHandlers.push({ pluginName: this.pluginName, filter, namespace, loader, callback })
 	}
 
-	/** TODO: implement the mechanism inside `onEnd`, and then add documentation and usage examples. */
+	/** TODO: add documentation and usage examples. */
 	public onEmit(options: OnEmitOptions, callback: OnEmitCallback): void {
 		const { filter, inputs } = options
 		this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, inputs, callback })

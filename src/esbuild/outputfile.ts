@@ -27,6 +27,8 @@ export interface ExternalFileEntity {
 */
 export type OutputFileEntityMap = Map<string, OutputFileEntity>
 
+export type WriteFileFn = (file_path: string | URL, data: ArrayBufferView) => Promise<void>
+
 export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "contents" | "hash">, "contents"> {
 	/** the **absolute** output path of this resource entity. */
 	public outputPath: string
@@ -207,6 +209,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 					: on_emit_result.contents
 			}
 			if (on_emit_result.path) { this.rename(on_emit_result.path) }
+			if (!isNull(on_emit_result.write)) { this.write = on_emit_result.write }
 			// TODO: add and implement the `on_emit_result.write = false` option, in addition to adding this info to the `ImportedEntity` interface.
 			// though, what will happen to the files that depend on the deleted files?
 			// should I simply delete this resource from the dependency graph and call it a day?
@@ -247,7 +250,8 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 		}
 	}
 
-	public writeToFs() {
-		// TODO: should I abstract away the write function and have it passed as an arg? or should I just use my use crossenv's write function?
+	public async writeFile(write_file_fn: WriteFileFn): Promise<void> {
+		if (!this.write) { return }
+		return write_file_fn(this.outputPath, this.contents)
 	}
 }
