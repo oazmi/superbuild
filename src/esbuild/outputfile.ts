@@ -1,5 +1,5 @@
-import { array_isEmpty, type Require } from "../deps.ts"
-import type { SuperBuildContext } from "../super/build_context.ts"
+import { array_isEmpty, isNull, isString, textEncoder, type Require } from "../deps.ts"
+import type { OnEmitHandler, SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
 import type { BundledInputFile, ImportedEntity, OnEmitOptions, OnEmitResult, OnTransformResult } from "../super/typedefs.ts"
 import type { Metafile } from "./metafile.ts"
@@ -38,11 +38,11 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 
 	public hash?: string
 
-	public contents: Uint8Array<ArrayBufferLike>
+	public contents: Uint8Array<ArrayBuffer>
 
 	/** specify if this file entry should be written.
 	 *
-	 * @defaultValue `true` (i.e. it'll be written if `BuildOption.write` is enabled, otherwise it won't be.)
+	 * @defaultValue `true` (i.e. it'll be written if `EsbuildBuildOption.write` is enabled, otherwise it won't be.)
 	*/
 	public write: boolean = true
 
@@ -149,7 +149,8 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 		return imported_entities
 	}
 
-	public matchOnEmitFilter(options: OnEmitOptions): boolean {
+	/** test if an `onEmit` handler's filters apply to _this_ output file entity. */
+	protected matchOnEmitFilter(options: OnEmitOptions): boolean {
 		const
 			{ filter, inputs: input_filters } = options,
 			output_path = this.outputPath
@@ -176,8 +177,52 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 		return true
 	}
 
+	/** perform `onEmit` action on _this_ output file entity, based on the provided `onEmit` handlers. */
+	public async performOnEmit(on_emit_handlers: Array<OnEmitHandler>): Promise<OnEmitResult | undefined> {
+		const imported_entities: ImportedEntity[] = this.imports.map((imported_entity_node) => {
+			const
+				{ key, kind, external, entity, with: with_attr } = imported_entity_node,
+				is_external_entity = "externalPath" in entity,
+				outputPath = is_external_entity ? entity.externalPath : entity.outputPath,
+				initialPath = is_external_entity ? undefined : entity.initialPath
+			return { key, outputPath, initialPath, kind, external, with: with_attr }
+		})
+
+		// attempt at matching the output file with all available `onEmit` hooks' filters,
+		// and stopping at the first match that yields a viable result.
+		for (const handler of on_emit_handlers) {
+			if (!this.matchOnEmitFilter(handler)) { continue }
+			const on_emit_result = await handler.callback({
+				outputPath: this.outputPath,
+				contents: this.contents,
+				inputs: this.inputs,
+				imports: imported_entities,
+			})
+			if (isNull(on_emit_result)) { continue }
+
+			// updating the emitted file `path` and `contents` from the `result`.
+			if (on_emit_result.contents) {
+				this.contents = isString(on_emit_result.contents)
+					? textEncoder.encode(on_emit_result.contents)
+					: on_emit_result.contents
+			}
+			if (on_emit_result.path) { this.rename(on_emit_result.path) }
+			// TODO: add and implement the `on_emit_result.write = false` option, in addition to adding this info to the `ImportedEntity` interface.
+			// though, what will happen to the files that depend on the deleted files?
+			// should I simply delete this resource from the dependency graph and call it a day?
+
+			// inserting the original plugin names of the plugins where the errors and warnings originated from.
+			const pluginName = handler.pluginName
+			on_emit_result.warnings?.forEach((warning) => { if (!warning.pluginName) { warning.pluginName = pluginName } })
+			on_emit_result.errors?.forEach((error) => { if (!error.pluginName) { error.pluginName = pluginName } })
+			return on_emit_result
+		}
+	}
+
 	/** rename this file. you can either provide an absolute path, or a relative path.
 	 * relative paths will be resolved with respect to the `cwd` or esbuild's `absWorkingDir`.
+	 *
+	 * TODO: it should actually be relative to the outdir.
 	*/
 	public rename(new_output_path: string) {
 		// save the original output path into `initialPath` if it has never been assigned before.

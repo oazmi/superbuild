@@ -344,10 +344,18 @@ export interface OnEmitArgs {
 
 export interface OnEmitResult extends EsbuildOnEndResult {
 	/** provide an alternate path to place this resource.
-	 * - if a relative path is provided (which is what is recommended),
-	 *   then this file will be placed relative to the output directory specified in the initial build options.
-	 * - if a special symbol {@link DELETE_ENTITY} is assigned to this field,
-	 *   then it will signal that this entity is to be destroyed (i.e. not emitted to the filesystem).
+	 *
+	 * if a relative path is provided (which is what is recommended),
+	 * then this file will be placed relative to the output directory specified in the initial build options.
+	*/
+	path?: string
+
+	/** the contents of the file after you've re-incorporated the imported/dependency links into it.
+	 * if left `undefined`, then the original {@link OnEmitArgs.contents} will be used as its value.
+	*/
+	contents?: string | Uint8Array<ArrayBuffer>
+
+	/** specify if the file should be written (i.e. emitted) at all.
 	 *
 	 * > [!note]
 	 * > note that it is totally possible to delete an entity, but still have some {@link contents} assigned to it.
@@ -360,18 +368,10 @@ export interface OnEmitResult extends EsbuildOnEndResult {
 	 * >
 	 * > (TODO: though, right now, I don't currently give a global readonly access to the output files registry inside the {@link OnEmitCallback} function.
 	 * > I should probably add the registry as a second argument to the callback function.)
+	 *
+	 * @defaultValue `true` (i.e. it'll be written if `EsbuildBuildOption.write` is enabled, otherwise it won't be.)
 	*/
-	path?: string | typeof DELETE_ENTITY
-
-	/** if an alternate {@link path} is to be used, then should the dependents of this resource have their
-	 * {@link OnEmitArgs.imports} updated to reflect the new path of this resource?
-	*/
-	updateDependents?: boolean
-
-	/** the contents of the file after you've re-incorporated the imported/dependency links into it.
-	 * if left `undefined`, then the original {@link OnEmitArgs.contents} will be used as its value.
-	*/
-	contents?: string | Uint8Array<ArrayBuffer>
+	write?: boolean
 }
 
 /** this is your `onEmit` hook function that gets called,
