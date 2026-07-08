@@ -7,14 +7,13 @@
  * @module
 */
 
-import { array_isEmpty, ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isArray, isNull, isString, type MaybePromiseLike, object_entries, pathToPosixPath, promise_all, promiseOutside, resolveAsUrl, resolvePathFactory, textDecoder, textEncoder } from "../deps.ts"
-import type { EsbuildMetafile, EsbuildMetafileImportProps, EsbuildOnEndCallback, EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup } from "../esbuild/strongtypes.ts"
-import type { EsbuildOutputFile } from "../esbuild/typedefs.ts"
-import { concatArrays, mergeMapArrays, splitNamespacedPath } from "../funcdefs.ts"
-import type { OnEmitHandler, SuperBuildContext } from "../super/build_context.ts"
+import { array_isEmpty, ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isArray, isNull, type MaybePromiseLike, pathToPosixPath, promise_all, promiseOutside, resolveAsUrl, resolvePathFactory, textDecoder } from "../deps.ts"
+import type { EsbuildMetafile, EsbuildOnEndCallback, EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup } from "../esbuild/strongtypes.ts"
+import { concatArrays } from "../funcdefs.ts"
+import type { SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
-import type { BundledInputFile, ImportedEntity, OnEmitResult } from "../super/typedefs.ts"
-import { DELETE_ENTITY, INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
+import type { ImportedEntity, OnEmitResult } from "../super/typedefs.ts"
+import { INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
 import type { LongBuildController, longBuildPlugin } from "./long_build.ts"
 import { Metafile } from "../esbuild/metafile.ts"
 import { type ImportedEntityNode, OutputFileEntity } from "../esbuild/outputfile.ts"
@@ -80,19 +79,18 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 			if (isNull(longbuild_file)) { return { warnings: ctx.warnings, errors: ctx.errors } }
 			await incorporateLongBuildImportedEntities(ctx, longbuild_file)
 
-			// TODO: everything below hasn't been taken care of yet.
-
 			// below, we create a parallel/branching chain of promises that is guaranteeded to resolve in topological ordering (import dependency wise),
 			// and then we fire the `onEmit` action on each source node (zero dependency output files) to ignite the reaction.
 			type NullableOnEmitResult = OnEmitResult | undefined | null | void
 			const
-				dependency_graph = DependencyGraphNode.createDependencyGraph<NullableOnEmitResult>(all_parsed_imports),
-				source_resource_nodes = DependencyGraphNode.chainNodePromises<NullableOnEmitResult>(dependency_graph),
+				files_dependency_graph = metafile.createFileDependencyGraph(),
+				dependency_graph = DependencyGraphNode.fromGraph(files_dependency_graph),
+				source_resource_nodes = DependencyGraphNode.chainNodePromises<OutputFileEntity, NullableOnEmitResult>(dependency_graph),
 				all_node_promises = Promise.all([...dependency_graph.values()].map((node) => (node.promise))),
-				on_emit_callback: DependencyGraphNode<string, NullableOnEmitResult>["callback"] = async (node, dependency_results) => {
+				on_emit_callback: DependencyGraphNode<OutputFileEntity, OutputFileEntity, NullableOnEmitResult>["callback"] = async (node, dependency_results) => {
 					const
-						output_path = node.id,
-						on_emit_result = await performOnEmitOnOutputFile(ctx, onEmitHandlers, all_parsed_imports, output_path)
+						entity = node.key,
+						on_emit_result = await entity.performOnEmit(onEmitHandlers)
 					// if any error is encountered in the user's `onEmit` hook function's return value,
 					// exit the build early by rejecting the promise, and cancelling everything downstream.
 					if ((on_emit_result?.errors?.length ?? 0) > 0) { node.reject(on_emit_result!.errors!) }
@@ -266,68 +264,20 @@ const incorporateLongBuildImportedEntities = async (
 	}
 }
 
-const performOnEmitOnOutputFile = async (
-	ctx: EmissionDriverContext,
-	on_emit_handlers: OnEmitHandler[],
-	all_imported_entities_map: ParseImportedEntities,
-	output_path: string,
-): Promise<OnEmitResult | undefined> => {
-	// attempt at matching the output file with all available `onEmit` hooks' filters,
-	// and stopping at the first match that yields a viable result.
-	for (const handler of on_emit_handlers) {
-		const match_result = matchOnEmitFilter(ctx, handler, all_imported_entities_map, output_path)
-		if (isNull(match_result)) { continue }
-		const { match: matched_file, inputs, imports, warnings: local_warnings } = match_result
-		const on_emit_result = await handler.callback({
-			outputPath: matched_file.path,
-			contents: matched_file.contents,
-			inputs: inputs!,
-			imports: imports!,
-		})
+type DependencyGraph<K, V, R = any> = Map<K, DependencyGraphNode<K, V, R>>
 
-		// updating the emitted file `path` and `contents` from the `result`.
-		if (isNull(on_emit_result)) { continue }
-		if (on_emit_result.contents) {
-			matched_file.contents = isString(on_emit_result.contents)
-				? textEncoder.encode(on_emit_result.contents)
-				: on_emit_result.contents
-		}
-		if (on_emit_result.path) {
-			// TODO: implement output file deletion.
-			// though, what will happen to the files that depend on the deleted files?
-			// should I simply delete this resource from the dependency graph and call it a day?
-			if (on_emit_result.path === DELETE_ENTITY) { }
-			else {
-				matched_file.path = on_emit_result.path
-			}
-		}
-		if (on_emit_result.updateDependents) {
-			// TODO: handle this option after grouped topological dependency traversal has been implemented.
-		}
-
-		// inserting the original plugin names of the plugins where the errors and warnings originated from.
-		const pluginName = handler.pluginName
-		on_emit_result.warnings?.forEach((warning) => { if (!warning.pluginName) { warning.pluginName = pluginName } })
-		on_emit_result.errors?.forEach((error) => { if (!error.pluginName) { error.pluginName = pluginName } })
-		on_emit_result.warnings = concatArrays(local_warnings, on_emit_result.warnings) // also add warnings from this plugin (the emissions driver) itself.
-		return on_emit_result
-	}
-}
-
-type DependencyGraph<ID = string, T = any> = Map<ID, DependencyGraphNode<ID, T>>
-
-class DependencyGraphNode<ID = string, T = any> {
-	public readonly id: ID
-	public readonly dependencies: Set<ID>
-	public readonly promise: Promise<T>
-	public readonly resolve: (result: MaybePromiseLike<T>) => void
+class DependencyGraphNode<K, V, R = any> {
+	public readonly key: K
+	public readonly dependencies: Set<K>
+	public readonly promise: Promise<R>
+	public readonly resolve: (result: MaybePromiseLike<R>) => void
 	public readonly reject: (reason?: any) => void
-	protected callback?: (self: this, dependency_results: Array<T>) => Promise<T>
+	protected callback?: (self: this, dependency_results: Array<R>) => Promise<R>
 
-	constructor(id: ID, dependencies: Iterable<ID>) {
-		this.id = id
+	constructor(key: K, dependencies: Iterable<K>) {
+		this.key = key
 		this.dependencies = new Set(dependencies)
-		const [promise, resolve, reject] = promiseOutside<T>()
+		const [promise, resolve, reject] = promiseOutside<R>()
 		this.promise = promise
 		this.resolve = resolve
 		this.reject = reject
@@ -336,30 +286,24 @@ class DependencyGraphNode<ID = string, T = any> {
 	/** set the callback function to run once the {@link promise | promises} of _this_ node's {@link dependencies} get resolved.
 	 * once your callback has been executed and waited for, the {@link promise} of _this_ node will also get resolved.
 	*/
-	public setCallback(callback: (self: this, dependency_results: Array<T>) => Promise<T>): void {
+	public setCallback(callback: (self: this, dependency_results: Array<R>) => Promise<R>): void {
 		this.callback = callback
 	}
 
 	/** manually fire the {@link callback} function of this node, and have its {@Link promise} get resolved.
 	 * this is only intended to be used for source nodes (which carry no dependencies), although it is not enforced.
 	*/
-	public async fire(): Promise<T> {
+	public async fire(): Promise<R> {
 		if (this.callback) { this.callback(this, []).then(this.resolve, this.reject) }
-		else { this.reject([{ text: `[DependencyGraphNode.fire]: no callback was set for node id: "${this.id}".` } satisfies EsbuildPartialMessage]) }
+		else { this.reject([{ text: `[DependencyGraphNode.fire]: no callback was set for node id: "${this.key}".` } satisfies EsbuildPartialMessage]) }
 		return this.promise
 	}
 
-	/** prepare a dependency graph from a `Map` of entity imports information. */
-	static createDependencyGraph<T>(all_imported_entities_map: ParseImportedEntities): DependencyGraph<string, T> {
-		const graph = [...all_imported_entities_map].map(([output_path, imported_entities]) => {
-			const
-				dependency_paths = imported_entities
-					// external resources do not contribute to dependency graph, as they themselves (the external resources) do not get emitted, nor do they go through the emission stage.
-					// also, while `props.outputPath` is guaranteed to be a `string` at this point (and cannot be the `DELETED_ENTITY` symbol), we still filter out that case just in case.
-					.filter((props) => { return !props.external && isString(props.outputPath) })
-					.map((props) => { return props.outputPath as string }),
-				node = new this<string>(output_path, dependency_paths)
-			return [output_path, node] satisfies [graph_id: string, graph_node: InstanceType<typeof this<string, T>>]
+	/** create a dependency graph from an existing graph `Map`. */
+	static fromGraph<T, R = any>(dependency_graph: Map<T, Set<T>>): DependencyGraph<T, T, R> {
+		const graph = [...dependency_graph].map(([key, dependencies]) => {
+			const node = new this<T, T>(key, dependencies)
+			return [key, node] satisfies [graph_key: T, graph_node: InstanceType<typeof this<T, T>>]
 		})
 		return new Map(graph)
 	}
@@ -368,8 +312,8 @@ class DependencyGraphNode<ID = string, T = any> {
 	 * while maintaining asynchronocity among all branches.
 	 * the returned value contains an array of all nodes that are source nodes (carry no dependency).
 	*/
-	static chainNodePromises<T>(dependency_graph: DependencyGraph<string, T>): Array<InstanceType<typeof this<string, T>>> {
-		const source_nodes: Array<InstanceType<typeof this<string, T>>> = []
+	static chainNodePromises<T, R = any>(dependency_graph: DependencyGraph<T, T, R>): Array<InstanceType<typeof this<T, T, R>>> {
+		const source_nodes: Array<InstanceType<typeof this<T, T>>> = []
 		for (const [id, node] of dependency_graph) {
 			if (node.dependencies.size <= 0) {
 				source_nodes.push(node)
@@ -384,7 +328,7 @@ class DependencyGraphNode<ID = string, T = any> {
 					const callback = node.callback
 					if (!callback) {
 						node.reject([{
-							text: `[DependencyGraphNode::chainNodePromises]: no callback was set for node id: "${node.id}".`
+							text: `[DependencyGraphNode::chainNodePromises]: no callback was set for node id: "${node.key}".`
 						} satisfies EsbuildPartialMessage])
 					} else { node.resolve(callback(node, dependency_results)) }
 				})

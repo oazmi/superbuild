@@ -148,6 +148,19 @@ export class Metafile implements MetafileConfig {
 		return file_entity_matches
 	}
 
+	/** prepares a dependency graph from the current list of {@link outputFileEntities}. */
+	public createFileDependencyGraph(): Map<OutputFileEntity, Set<OutputFileEntity>> {
+		const graph: Map<OutputFileEntity, Set<OutputFileEntity>> = new Map()
+		for (const [output_path_key, entity] of this.outputFileEntities) {
+			const dependencies: OutputFileEntity[] = entity.imports
+				// external resources do not contribute to dependency graph, as they themselves (the external resources) do not get emitted, nor do they go through the emission stage.
+				.filter((dep_node) => { return !("externalPath" in dep_node.entity) })
+				.map((dep_node) => { return dep_node.entity as OutputFileEntity })
+			graph.set(entity, new Set(dependencies))
+		}
+		return graph
+	}
+
 	/** normalizes an esbuild metafile to use namespaced paths (`${namespace}:${resolved_path}`) for resolved paths,
 	 * and absolute paths for output file paths.
 	 *
