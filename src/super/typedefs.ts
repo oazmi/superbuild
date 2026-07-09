@@ -3,9 +3,8 @@
  * @module
 */
 
-import type { AutoSuggestOrString, MaybePromiseOrNull, Require } from "../deps.ts"
+import type { AutoSuggestOrString, MaybePromiseOrNull } from "../deps.ts"
 import type { EsbuildLoaderType, EsbuildMetafileImportProps, EsbuildOnEndResult, EsbuildOutputsImportKind, EsbuildPartialMessage, OnLoadResult } from "../esbuild/strongtypes.ts"
-import type { EsbuildOutputFile } from "../esbuild/typedefs.ts"
 import type { longBuildPluginSetup } from "../plugins/long_build.ts"
 import type { EsbuildNativeResolver, nativeReplicaPluginSetup } from "../plugins/native_replica.ts"
 import type { SuperBuildContext } from "./build_context.ts"
@@ -18,18 +17,6 @@ import type { SuperPluginBuild } from "./plugin_build.ts"
  * such as in the case of {@link EsbuildNativeResolver}, which is spawned by {@link nativeReplicaPluginSetup}.
 */
 export const INNER_PLUGIN_BUILD = Symbol()
-
-/** a return value of the {@link OnEmitResult.contents} that indicates that no file should be emitted for this resource. */
-export const DELETE_ENTITY = Symbol()
-
-/** a symbol assigned to an imported entity's {@link ImportedEntity.outputPath} (inside {@link OnEmitArgs.imports})
- * that dictates that the imported entity was deleted (i.e. won't be emitted as a file).
- *
- * you can still acquire the original output path of the imported entity by referring to its {@link ImportedEntity.initialPath} field.
- *
- * fyi: {@link DELETED_ENTITY} === {@link DELETE_ENTITY}. or in other words: OBAMA = ILLUMINATI, CONFIRMED.
-*/
-export const DELETED_ENTITY = DELETE_ENTITY
 
 export interface OnTransformOptions {
 	filter: RegExp
@@ -204,19 +191,16 @@ export type ImportedEntityKind = EsbuildOutputsImportKind | "user-import"
  * - for imports performed by esbuild (such as js and css imports), the {@link key} will be an array of namespaced resolved paths
  *   (of the form `${namespace}:${resolved_path}`) that contributed to the creation of the imported (and possibly bundled) resource.
  *
- * TODO: I don't currently include the original `with` import attribute in this description, but should I? It'll be defunct anyway.
+ * TODO: the currently include `with` import attribute is defunct. should it have any built-in purpose,
+ * or should it be just left up to the user to decide what to do with that information?
 */
 export interface ImportedEntity<K = any> extends Pick<NonNullable<ImportEntity<K>>, "key" | "with"> {
 	/** the **absolute** output path of the resource/entity that is being imported.
 	 *
 	 * to convert it to a relative path with respect to the entity that imports this resource,
 	 * use the `relativePath` function from my `jsr:@oazmi/kitchensink/pathman` or `npm:@oazmi/kitchensink/pathman` libraries.
-	 *
-	 * if the output path is assigned a {@link DELETED_ENTITY} symbol, it means that it is not being emitted as file,
-	 * and that you should probably remove the import statement associated with it in your dependent entity's {@link OnEmitArgs.contents}
-	 * (or perhaps inline the imported entity's contents (but that's still a TODO feature)).
 	*/
-	outputPath: string | typeof DELETED_ENTITY
+	outputPath: string
 
 	/** if the imported entity was renamed during the {@link SuperPluginBuild.onEmit, emission stage},
 	 * then its original (absolute) {@link outputPath} will get saved here.
@@ -235,8 +219,7 @@ export interface ImportedEntity<K = any> extends Pick<NonNullable<ImportEntity<K
 	 *
 	 * > [!note]
 	 * > this field is only assigned when the {@link OnEmitResult | emission stage result} of the dependency import changes the
-	 * > {@link OnEmitResult.path} something different from the original (case sensitive),
-	 * > or when {@link OnEmitResult.path} is set to be {@link DELETE_ENTITY}.
+	 * > {@link OnEmitResult.path} to something different from the original (case sensitive).
 	*/
 	initialPath?: string
 
@@ -248,6 +231,17 @@ export interface ImportedEntity<K = any> extends Pick<NonNullable<ImportEntity<K
 
 	/** indicates if this imported entity is an external resource (and hence not bundled). */
 	external: boolean
+
+	/** this flag indicates if the imported file entity is being written at all into the filesystem (supposing that the `EsbuildBuildOptions.write` was not disabled).
+	 *
+	 * in general, this flag is set to `false` for entities with {@link external} set to `true`.
+	 * but for non-external imported entities, when this flag is set to `false`,
+	 * it can hint to the importer entity that they should probably remove the import statement associated with this import,
+	 * in order not to get any runtime-import exceptions. or perhaps,
+	 * it can hint that the imported entity should have its contents inlined into the importer, such as in the case of html's inline js and css.
+	 * (TODO: currently, importers cannot read the `contents` of the imported entity, so this feature needs to be implemented).
+	*/
+	write: boolean
 }
 
 /** a single input file filteration rule used in {@link OnEmitOptions}. */
@@ -292,10 +286,6 @@ export interface OnEmitOptions {
 	// TODO: should I also add an `imports` filter as an option here? I think it'll be useful under certain cases,
 	// although it won't provide anything that cannot already be achieved by capturing all emitted resources and then checking if an import is found.
 }
-
-// TODO: it'll be cool if the return value of the `onEmit` callback can declare a different output directory path,
-// and then also specify if the paths of the resources linked to this file, and the files this file imports should be updated as well.
-// although, for such a feature, we will need to first produce a dependency graph, which will require the use of esbuild's `metafile` option.
 
 /** a description of an input file that was bundled into a physical output file ({@link OnEmitArgs}). */
 export interface BundledInputFile {

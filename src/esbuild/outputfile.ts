@@ -186,8 +186,9 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 				{ key, kind, external, entity, with: with_attr } = imported_entity_node,
 				is_external_entity = "externalPath" in entity,
 				outputPath = is_external_entity ? entity.externalPath : entity.outputPath,
-				initialPath = is_external_entity ? undefined : entity.initialPath
-			return { key, outputPath, initialPath, kind, external, with: with_attr }
+				initialPath = is_external_entity ? undefined : entity.initialPath,
+				write = is_external_entity ? false : entity.write
+			return { key, outputPath, initialPath, kind, external, with: with_attr, write }
 		})
 
 		// attempt at matching the output file with all available `onEmit` hooks' filters,
@@ -210,8 +211,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 			}
 			if (on_emit_result.path) { this.rename(on_emit_result.path) }
 			if (!isNull(on_emit_result.write)) { this.write = on_emit_result.write }
-			// TODO: add and implement the `on_emit_result.write = false` option, in addition to adding this info to the `ImportedEntity` interface.
-			// though, what will happen to the files that depend on the deleted files?
+			// TODO: what will happen to the files that depend on the deleted files?
 			// should I simply delete this resource from the dependency graph and call it a day?
 
 			// inserting the original plugin names of the plugins where the errors and warnings originated from.
