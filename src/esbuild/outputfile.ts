@@ -1,7 +1,14 @@
+/** a utility submodule that works alongside {@link Metafile} to aid in holding onto a given file's contents, path, inputs, and imports,
+ * in addition to providing useful file-related methods, such as {@link OnEmitOptions} filter matching, and etc...
+ *
+ * @module
+*/
+
 import { array_isEmpty, isNull, isString, relativePath, textEncoder, type Require } from "../deps.ts"
 import type { OnEmitHandler, SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
 import type { BundledInputFile, ImportedEntity, OnEmitOptions, OnEmitResult, OnTransformResult } from "../super/typedefs.ts"
+import type { AbsolutePath, NamespacedPath, Path } from "../typedefs.ts"
 import type { Metafile } from "./metafile.ts"
 import type { EsbuildOutputFile } from "./typedefs.ts"
 
@@ -16,7 +23,7 @@ export interface ImportedEntityNode<K = any> extends Pick<ImportedEntity<K>, "ke
 
 export interface ExternalFileEntity {
 	/** the **absolute** external path of this external resource entity. */
-	externalPath: string
+	externalPath: AbsolutePath
 }
 
 /** this dictionary maps an output file's **original** absolute output path to its {@link OutputFileEntity} object.
@@ -31,12 +38,12 @@ export type WriteFileFn = (file_path: string | URL, data: ArrayBufferView) => Pr
 
 export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "contents" | "hash">, "contents"> {
 	/** the **absolute** output path of this resource entity. */
-	public outputPath: string
+	public outputPath: AbsolutePath
 
 	/** if this resource entity was renamed during the {@link SuperPluginBuild.onEmit, emission stage},
 	 * then its original (absolute) {@link outputPath} will get saved here.
 	*/
-	public initialPath?: string
+	public initialPath?: AbsolutePath
 
 	public hash?: string
 
@@ -133,7 +140,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 				import_output_path_key = import_output_path.toLowerCase(),
 				entity = metafile.outputFileEntities.get(import_output_path_key)
 			if (!entity) { throw Error(`[OutputFileEntity.scanEsbuildImports]: no matching output file entity for the path "${import_output_path_key}" could be found.`) }
-			const import_sources = entity.inputs.map((props) => { return (props.namespace + ":" + props.path).toLowerCase() })
+			const import_sources = entity.inputs.map((props): NamespacedPath => { return (props.namespace + ":" + props.path).toLowerCase() })
 			if (array_isEmpty(import_sources)) {
 				// TODO: under this scenario, I can technically still construct a `key` if I were to inspect the `imports` of the `outputPath`,
 				// and then trace which of _its_ inputs correspond to this `import_output_path`,
@@ -227,7 +234,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 	 *
 	 * TODO: it should actually be relative to the outdir.
 	*/
-	public rename(new_output_path: string) {
+	public rename(new_output_path: Path) {
 		// save the original output path into `initialPath` if it has never been assigned before.
 		this.initialPath ??= this.outputPath
 		this.outputPath = this.metafile.resolvePath(new_output_path)
@@ -238,11 +245,11 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 	 * (honestly, I don't see myself using it, and if we're overloading esbuild anyway, why don't we overload the `OutputFile`
 	 * interface to include new fields, such as `write` and `external`, etc...?)
 	*/
-	public toEsbuildOutputFile(outdir?: string): Require<EsbuildOutputFile, "path" | "contents"> | undefined {
+	public toEsbuildOutputFile(outdir: Path = "./"): Require<EsbuildOutputFile, "path" | "contents"> | undefined {
 		if (!this.write) { return undefined }
 		const metafile = this.metafile
-		outdir = metafile.resolvePath(outdir ?? "./")
-		const relative_path = relativePath(this.outputPath, outdir) // TODO: letter casing inconsistency can pose and issue here.
+		outdir = metafile.resolvePath(outdir)
+		const relative_path = relativePath(this.outputPath, outdir) // TODO: letter casing inconsistency can pose an issue here.
 		return {
 			path: relative_path,
 			hash: this.hash,

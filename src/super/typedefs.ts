@@ -7,6 +7,7 @@ import type { AutoSuggestOrString, MaybePromiseOrNull } from "../deps.ts"
 import type { EsbuildLoaderType, EsbuildMetafileImportProps, EsbuildOnEndResult, EsbuildOutputsImportKind, EsbuildPartialMessage, OnLoadResult } from "../esbuild/strongtypes.ts"
 import type { longBuildPluginSetup } from "../plugins/long_build.ts"
 import type { EsbuildNativeResolver, nativeReplicaPluginSetup } from "../plugins/native_replica.ts"
+import type { AbsolutePath, Path, RelativePath, ResolvedPath } from "../typedefs.ts"
 import type { SuperBuildContext } from "./build_context.ts"
 import type { SuperPluginBuild } from "./plugin_build.ts"
 
@@ -30,7 +31,7 @@ export interface OnTransformArgs {
 	// kind: ImportKind
 
 	/** the resolved path of the {@link contents}. */
-	path: string
+	path: ResolvedPath
 
 	/** the namespace inherited from the `onLoad` hook (which gets inherited from the `onResolve` hook). */
 	namespace: string
@@ -161,7 +162,7 @@ export interface ImportEntity<K = any> {
 	 * we leave it up to the plugin designer to decide how they would want to resolve the paths in their `onTransform` hook's returned imports,
 	 * rather than performing a default action ourselves.
 	*/
-	path: string
+	path: AbsolutePath | ResolvedPath
 
 	/** associate a `with` import attribute to the import. */
 	with?: Record<string, string>
@@ -200,7 +201,7 @@ export interface ImportedEntity<K = any> extends Pick<NonNullable<ImportEntity<K
 	 * to convert it to a relative path with respect to the entity that imports this resource,
 	 * use the `relativePath` function from my `jsr:@oazmi/kitchensink/pathman` or `npm:@oazmi/kitchensink/pathman` libraries.
 	*/
-	outputPath: string
+	outputPath: AbsolutePath
 
 	/** if the imported entity was renamed during the {@link SuperPluginBuild.onEmit, emission stage},
 	 * then its original (absolute) {@link outputPath} will get saved here.
@@ -221,7 +222,7 @@ export interface ImportedEntity<K = any> extends Pick<NonNullable<ImportEntity<K
 	 * > this field is only assigned when the {@link OnEmitResult | emission stage result} of the dependency import changes the
 	 * > {@link OnEmitResult.path} to something different from the original (case sensitive).
 	*/
-	initialPath?: string
+	initialPath?: AbsolutePath
 
 	/** indicates the kind of import that is being performed. all of these are inherited from esbuild metafile's
 	 * {@link EsbuildMetafileImportProps.kind | `kind` field}, with the exception of `"user-import"`,
@@ -290,7 +291,7 @@ export interface OnEmitOptions {
 /** a description of an input file that was bundled into a physical output file ({@link OnEmitArgs}). */
 export interface BundledInputFile {
 	/** the original (absolute) resolved path (return value of the `onResolve` hook) of this bundled resource. */
-	path: string
+	path: ResolvedPath
 
 	/** the namespace inherited from the `onTransform` hook
 	 * (which gets inherited from the `onLoad` hook, and the `onResolve` hook prior to it).
@@ -316,8 +317,12 @@ export interface BundledInputFile {
 }
 
 export interface OnEmitArgs {
-	/** the output path of this bundled resource, relative to the `outdir` directory, always in posix format. */
-	outputPath: string
+	/** the output path of this bundled resource, relative to the `cwd` or `absWorkingDir`
+	 * (not the `outdir` directory!), and always in posix format.
+	 *
+	 * TODO: I actually don't provide a relative path right now. but should I even?
+	*/
+	outputPath: RelativePath
 
 	/** a list of input resources that were bundled into this resource (by esbuild), or were chunked by esbuild for this resource. */
 	inputs: Array<BundledInputFile>
@@ -336,9 +341,13 @@ export interface OnEmitResult extends EsbuildOnEndResult {
 	/** provide an alternate path to place this resource.
 	 *
 	 * if a relative path is provided (which is what is recommended),
-	 * then this file will be placed relative to the output directory specified in the initial build options.
+	 * then this file will be placed relative to the `cwd` or `absWorkingDir` specified in the initial build options,
+	 * which is different from the `outdir`. for providing paths relative to `outdir`, use an absolute path.
+	 *
+	 * TODO: in the future, consider adding a `pathRelativeTo` option, with the symbols `OUTDIR`, `CWD`, and `ABS_WORKING_DIR`,
+	 * for specifying what is the `path` relative to.
 	*/
-	path?: string
+	path?: Path
 
 	/** the contents of the file after you've re-incorporated the imported/dependency links into it.
 	 * if left `undefined`, then the original {@link OnEmitArgs.contents} will be used as its value.

@@ -6,6 +6,7 @@
 import { ensureFile, ensureRelativeDotSlash, identifyCurrentRuntime, isAbsolutePath, object_entries, object_fromEntries, object_keys, pathToPosixPath, writeFile } from "../deps.ts"
 import { splitNamespacedPath } from "../funcdefs.ts"
 import type { SuperBuildContext } from "../super/build_context.ts"
+import type { AbsolutePath, NamespacedPath, Path, ResolvedPath } from "../typedefs.ts"
 import { OutputFileEntity, type OutputFileEntityMap, type WriteFileFn } from "./outputfile.ts"
 import type { EsbuildMetafile, EsbuildMetafileImportProps, EsbuildPartialMessage } from "./strongtypes.ts"
 import type { EsbuildOutputFile } from "./typedefs.ts"
@@ -19,14 +20,14 @@ const windows_absolute_path_regex = /^[a-z]\:[\/\\]/i
  * - always has a leading `"./"` for relative paths.
  * - is always in the `${namespace}:${path}` format, even when `namespace === "file".`
 */
-const normalize_esbuild_filepath = (path: string): string => {
+const normalize_esbuild_filepath = (path: ResolvedPath | NamespacedPath): NamespacedPath => {
 	const is_local_path = !path.includes(":") || windows_absolute_path_regex.test(path)
 	return is_local_path
 		? "file:" + normalize_local_filepath(path)
 		: path
 }
 
-const normalize_local_filepath = (path: string): string => {
+const normalize_local_filepath = (path: Path): Path => {
 	const is_abs_path = isAbsolutePath(path)
 	return pathToPosixPath(is_abs_path ? path : ensureRelativeDotSlash(path))
 }
@@ -36,7 +37,7 @@ const
 	file_namespace_length = file_namespace.length
 
 const namespaced_path_to_abs_namespaced_path_factory = (
-	resolve_path_fn: (path: string) => string
+	resolve_path_fn: (path: NamespacedPath) => NamespacedPath
 ) => {
 	return (namespaced_path: string): string => {
 		if (!namespaced_path.startsWith(file_namespace)) { return namespaced_path }
@@ -47,10 +48,10 @@ const namespaced_path_to_abs_namespaced_path_factory = (
 
 interface FormattedMetafileOutputProps {
 	/** namespaced and absolute resolved file path of entry-point that is directly the result of this output file. */
-	entryPoint?: string
+	entryPoint?: NamespacedPath
 
 	/** namespaced and absolute resolved file paths of input resources that contributed (i.e. were bundled) into this output file. */
-	inputs: string[]
+	inputs: NamespacedPath[]
 
 	/** the `path` field inside specifies the absolute file paths to other output files that need to be imported by this output file,
 	 * unless the `external` flag is set to `true`, in which case the import `path` does not correspond to a local output file.
@@ -65,13 +66,13 @@ export interface MetafileConfig {
 	resolvedResourceRegistry: SuperBuildContext["resolvedResourceRegistry"]
 
 	/** a function that resolves the given path segment to an absolute path, with respect to `cwd` or `absWorkingDir`. */
-	resolvePath: (path: string) => string
+	resolvePath: (path: Path) => AbsolutePath
 }
 
 export class Metafile implements MetafileConfig {
 	protected readonly value: EsbuildMetafile
-	public readonly inputs: Map<string, EsbuildMetafile["inputs"][string]>
-	public readonly outputs: Map<string, FormattedMetafileOutputProps>
+	public readonly inputs: Map<NamespacedPath, EsbuildMetafile["inputs"][string]>
+	public readonly outputs: Map<AbsolutePath, FormattedMetafileOutputProps>
 	public outputFileEntities: OutputFileEntityMap = new Map()
 
 	/** a copy of the {@link SuperBuildContext.resolvedResourceRegistry}, where all keys use lower case characters.
@@ -81,7 +82,7 @@ export class Metafile implements MetafileConfig {
 	resolvedResourceRegistry: SuperBuildContext["resolvedResourceRegistry"]
 
 	/** a function that resolves the given path segment to an absolute path, with respect to `cwd` or `absWorkingDir`. */
-	public resolvePath: (path: string) => string
+	public resolvePath: (path: Path) => AbsolutePath
 
 	/** holds all warnings that have occurred during method calls. */
 	public warnings: EsbuildPartialMessage[] = []
@@ -317,14 +318,14 @@ const format_resolved_resource_registry = (registry: SuperBuildContext["resolved
 	const
 		warnings: EsbuildPartialMessage[] = [],
 		registry_lowercase = new Map([...registry].map(([resolved_path, props]) => {
-			return [resolved_path.toLowerCase(), props]
+			return [resolved_path.toLowerCase() satisfies NamespacedPath, props]
 		}))
 
 	if (registry_lowercase.size < registry.size) {
 		const
 			size_difference = registry.size - registry_lowercase.size,
 			conflicting_keys: Set<string> = new Set(),
-			encountered_lowercase_keys: Map<string, string> = new Map([...registry].map(([key, props]) => {
+			encountered_lowercase_keys: Map<NamespacedPath, string> = new Map([...registry].map(([key, props]) => {
 				const key_lowercase = key.toLowerCase()
 				return [key_lowercase, key]
 			}))

@@ -1,5 +1,8 @@
 /** this module contains base type definitions.
  *
+ * TODO: why not use these annotations on the metafile class and related entries?
+ * otherwise, these definitions are kind of pointless.
+ *
  * @module
 */
 
@@ -9,6 +12,16 @@ export type RelativePath = string
 
 /** type annotation for an absolute path. */
 export type AbsolutePath = string
+
+/** type annotation for a resolved path (that originates from the path resolver stage).
+ * it could either be an absolute path or an external absolute path.
+*/
+export type ResolvedPath = string
+
+/** type annotation for a namespaced resolved path of the form `${namespace}:${resolved_path}`, all in lowercasing.
+ * this is often used as a key for various `Map`s to identify resources and references to resources.
+*/
+export type NamespacedPath = string
 
 /** type annotation for any kind path. */
 export type Path = RelativePath | AbsolutePath

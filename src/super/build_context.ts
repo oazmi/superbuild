@@ -3,6 +3,8 @@
  * its main purpose is to inject some required plugins at their correct position, hold a few stateful objects,
  * and create a wrapper on top of the user's provided plugins so that the extended plugin api becomes available to them.
  *
+ * TODO: centralize logging as a part of the build context.
+ *
  * @module
 */
 
@@ -12,6 +14,7 @@ import type { EsbuildBuildOptions, EsbuildBuildResult, EsbuildOnEndCallback } fr
 import { emissionsDriverPlugin } from "../plugins/emissions_driver.ts"
 import { LongBuildController, longBuildPlugin } from "../plugins/long_build.ts"
 import { nativeReplicaPlugin } from "../plugins/native_replica.ts"
+import type { NamespacedPath } from "../typedefs.ts"
 import { SuperPlugin } from "./plugin.ts"
 import type { SuperPluginBuild } from "./plugin_build.ts"
 import type { BundledInputFile, OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions, OnTransformResult } from "./typedefs.ts"
@@ -55,7 +58,7 @@ export class SuperBuildContext {
 	 * this registry is needed in order to trace back the loaded input file(s) from which an emitted file originates from,
 	 * in order to make the functionality of {@link SuperPluginBuild.onEmit} possible.
 	*/
-	public resolvedResourceRegistry: Map<string, BundledInputFile> = new Map()
+	public resolvedResourceRegistry: Map<NamespacedPath, BundledInputFile> = new Map()
 
 	/** the controller used for commanding the state of the "long build" plugin. */
 	public longBuildController: LongBuildController
