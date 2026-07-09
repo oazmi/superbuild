@@ -58,7 +58,7 @@ interface FormattedMetafileOutputProps {
 	imports: Array<EsbuildMetafileImportProps>
 }
 
-interface MetafileConfig {
+export interface MetafileConfig {
 	/** a reference to the {@link SuperBuildContext.resolvedResourceRegistry} dictionary,
 	 * used for recalling the arguments returned by the resolver, loader, and transformer phases.
 	*/

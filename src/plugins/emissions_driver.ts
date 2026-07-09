@@ -8,9 +8,9 @@
 */
 
 import { array_isEmpty, ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isArray, isNull, type MaybePromiseLike, pathToPosixPath, promise_all, promiseOutside, resolveAsUrl, resolvePathFactory, textDecoder } from "../deps.ts"
-import { Metafile } from "../esbuild/metafile.ts"
+import type { Metafile } from "../esbuild/metafile.ts"
 import type { ImportedEntityNode, OutputFileEntity } from "../esbuild/outputfile.ts"
-import type { EsbuildMetafile, EsbuildOnEndCallback, EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup } from "../esbuild/strongtypes.ts"
+import type { EsbuildMetafile, EsbuildOnEndCallback, EsbuildOnEndResult, EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup } from "../esbuild/strongtypes.ts"
 import { concatArrays } from "../funcdefs.ts"
 import type { SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
@@ -54,19 +54,10 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 		const
 			longBuildController = ctx.longBuildController,
 			onEmitHandlers = ctx.onEmitHandlers,
-			resolvedResourceRegistry = ctx.resolvedResourceRegistry
+			onEndHandlers = ctx.onEndHandlers
 
 		// handles all registered `onEmit` hooks.
-		const performOnEmit: EsbuildOnEndCallback = async (result) => {
-			const metafile = new Metafile(result.metafile!, {
-				resolvePath: resolve_path,
-				resolvedResourceRegistry,
-			})
-			for (const esbuild_file of result.outputFiles!) { metafile.addFile(esbuild_file) }
-			// in order for all imports to get discovered and linked to each other's output file objects,
-			// we must run the method below after all output files have been added.
-			metafile.scanEsbuildImports()
-
+		const performOnEmit = async (metafile: Metafile): Promise<EsbuildOnEndResult> => {
 			const ctx: EmissionDriverContext = {
 				longBuildController,
 				metafile,
@@ -117,7 +108,7 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 
 		// handle all registered `onEnd` hooks.
 		const performOnEnd: EsbuildOnEndCallback = async (result) => {
-			const on_end_promises = ctx.onEndHandlers.map(async (handler) => {
+			const on_end_promises = onEndHandlers.map(async (handler) => {
 				const
 					{ pluginName, callback } = handler,
 					on_end_result = await callback(result)
@@ -138,10 +129,13 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 
 		base_plugin_build.onEnd(async (result) => {
 			const
-				on_emit_results = await performOnEmit(result),
+				metafile = ctx.createMetafile(result, { resolvePath: resolve_path }),
+				on_emit_results = await performOnEmit(metafile),
 				on_end_results = await performOnEnd(result),
 				warnings = concatArrays(on_emit_results?.warnings, on_end_results?.warnings),
 				errors = concatArrays(on_emit_results?.errors, on_end_results?.errors)
+			// end this build by informing the build context via its `endBuild` method.
+			await ctx.endBuild(metafile)
 			return { warnings, errors }
 		})
 	}

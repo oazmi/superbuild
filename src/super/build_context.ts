@@ -7,7 +7,8 @@
 */
 
 import { isArray, parseFilepathInfo } from "../deps.ts"
-import type { EsbuildBuildOptions, EsbuildOnEndCallback } from "../esbuild/strongtypes.ts"
+import { Metafile, type MetafileConfig } from "../esbuild/metafile.ts"
+import type { EsbuildBuildOptions, EsbuildBuildResult, EsbuildOnEndCallback } from "../esbuild/strongtypes.ts"
 import { emissionsDriverPlugin } from "../plugins/emissions_driver.ts"
 import { LongBuildController, longBuildPlugin } from "../plugins/long_build.ts"
 import { nativeReplicaPlugin } from "../plugins/native_replica.ts"
@@ -59,6 +60,9 @@ export class SuperBuildContext {
 	/** the controller used for commanding the state of the "long build" plugin. */
 	public longBuildController: LongBuildController
 
+	/** indicates the original `write` option specified by the user when instantiating the build. */
+	public shouldWrite: boolean = true
+
 	constructor() {
 		this.longBuildController = new LongBuildController()
 	}
@@ -98,10 +102,43 @@ export class SuperBuildContext {
 			// stripping away the ".js" extension from the filename.
 			entryPoints[long_build_filename] = parseFilepathInfo(long_build_filename).basename
 		}
-		// TODO: right now, we forcefully enable `metafile` and disable `write`, but in the future,
-		// we should create a sub-build where these options are enabled, but the top-level build will mock/respect the original intention.
+		this.shouldWrite = options.write ?? true
+		// we are forced to enable `metafile` and disable `write` because our emissions driver plugin depends on these crucial options.
+		// once the build has concluded, the emissions driver plugin will call the `endBuild`
+		// method to take care of emitting the files to the filesystem if `this.shouldWrite` is set to `true`.
 		options.metafile = true
 		options.write = false
 		return options
+	}
+
+	/** creates the the metafile object from esbuild's {@link EsbuildBuildResult},
+	 * and registers all output files onto it for the {@link emissionsDriverPlugin} to initiate the next step (`onEmit` stage).
+	*/
+	public createMetafile(
+		result: EsbuildBuildResult,
+		config: Pick<MetafileConfig, "resolvePath">,
+	): Metafile {
+		const metafile = new Metafile(result.metafile!, {
+			resolvePath: config.resolvePath,
+			resolvedResourceRegistry: this.resolvedResourceRegistry,
+		})
+		for (const esbuild_file of result.outputFiles!) { metafile.addFile(esbuild_file) }
+		// in order for all imports to get discovered and linked to each other's output file objects,
+		// we must run the method below after all output files have been added.
+		metafile.scanEsbuildImports()
+		return metafile
+	}
+
+	/** concludes the build after the all registered {@link onEmitHandlers} and {@link onEndHandlers}
+	 * have been executed by the {@link emissionsDriverPlugin} when it enters its `onEnd` stage (registered to the "true" `build` object).
+	 *
+	 * you must pass the mutated {@link Metafile} that you receive from calling the {@link createMetafile}
+	 * method at the beginning of the {@link emissionsDriverPlugin}'s `onEnd` stage,
+	 * so that if there's anything that should get written onto your filesystem, it will take place before the build concludes.
+	*/
+	public async endBuild(metafile: Metafile): Promise<void> {
+		// if the user had originally set the `EsbuildBuildOption.write` to `true | undefined`,
+		// then we shall emit the files onto the filesystem, now that the build has concluded.
+		if (this.shouldWrite) { await metafile.writeFiles() }
 	}
 }
