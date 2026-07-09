@@ -66,6 +66,9 @@ export class SuperBuildContext {
 	/** indicates the original `write` option specified by the user when instantiating the build. */
 	public shouldWrite: boolean = true
 
+	/** indicates if the original `allowOverwrite` option was enabled when the build was started. */
+	public shouldOverwrite: boolean = false
+
 	constructor() {
 		this.longBuildController = new LongBuildController()
 	}
@@ -106,6 +109,7 @@ export class SuperBuildContext {
 			entryPoints[long_build_filename] = parseFilepathInfo(long_build_filename).basename
 		}
 		this.shouldWrite = options.write ?? true
+		this.shouldOverwrite = options.allowOverwrite ?? false
 		// we are forced to enable `metafile` and disable `write` because our emissions driver plugin depends on these crucial options.
 		// once the build has concluded, the emissions driver plugin will call the `endBuild`
 		// method to take care of emitting the files to the filesystem if `this.shouldWrite` is set to `true`.
@@ -142,6 +146,6 @@ export class SuperBuildContext {
 	public async endBuild(metafile: Metafile): Promise<void> {
 		// if the user had originally set the `EsbuildBuildOption.write` to `true | undefined`,
 		// then we shall emit the files onto the filesystem, now that the build has concluded.
-		if (this.shouldWrite) { await metafile.writeFiles() }
+		if (this.shouldWrite) { await metafile.writeFiles(this.shouldOverwrite) }
 	}
 }

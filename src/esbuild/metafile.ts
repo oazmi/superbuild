@@ -3,7 +3,7 @@
  * @module
 */
 
-import { ensureFile, ensureRelativeDotSlash, identifyCurrentRuntime, isAbsolutePath, object_entries, object_fromEntries, object_keys, pathToPosixPath, writeFile } from "../deps.ts"
+import { ensureFile, ensureRelativeDotSlash, identifyCurrentRuntime, isAbsolutePath, object_entries, object_fromEntries, object_keys, pathToPosixPath, statEntry, writeFile } from "../deps.ts"
 import { splitNamespacedPath } from "../funcdefs.ts"
 import type { SuperBuildContext } from "../super/build_context.ts"
 import type { AbsolutePath, NamespacedPath, Path, ResolvedPath } from "../typedefs.ts"
@@ -163,10 +163,12 @@ export class Metafile implements MetafileConfig {
 	}
 
 	/** write all output file entities (those with `entity.write !== false`) to the filesystem. */
-	public async writeFiles(): Promise<void> {
+	public async writeFiles(allow_overwrite: boolean = false): Promise<void> {
 		const
 			current_runtime = identifyCurrentRuntime(),
 			write_file_fn: WriteFileFn = async (file_path, data) => {
+				// if overwriting is not permitted and an entry already exists at the given `file_path`, then skip writing.
+				if (!allow_overwrite && await statEntry(current_runtime, file_path)) { return }
 				await ensureFile(current_runtime, file_path)
 				await writeFile(current_runtime, file_path, data)
 			}
