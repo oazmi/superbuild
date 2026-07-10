@@ -8,15 +8,14 @@
 import { array_isEmpty, isNull, isRecord, pathToPosixPath } from "../deps.ts"
 import type {
 	EsbuildBuildOptions,
+	EsbuildLoaderType,
 	EsbuildOnEndCallback,
+	OnLoadCallback as EsbuildOnLoadCallback,
+	OnLoadResult as EsbuildOnLoadResult,
 	EsbuildOnStartCallback,
 	EsbuildPluginBuild,
 	EsbuildResolveOptions,
 	EsbuildResolveResult,
-	OnLoadArgs,
-	OnLoadCallback,
-	OnLoadOptions,
-	OnLoadResult,
 	OnResolveArgs,
 	OnResolveCallback,
 	OnResolveOptions,
@@ -26,7 +25,16 @@ import type { emissionsDriverPlugin } from "../plugins/emissions_driver.ts"
 import type { EsbuildNativeResolver, nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import { SuperBuild } from "./build.ts"
 import type { SuperBuildContext } from "./build_context.ts"
-import type { BundledInputFile, OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions } from "./typedefs.ts"
+import type {
+	BundledInputFile,
+	OnEmitCallback,
+	OnEmitOptions,
+	OnLoadArgs,
+	OnLoadCallback,
+	OnLoadOptions,
+	OnTransformCallback,
+	OnTransformOptions,
+} from "./typedefs.ts"
 import { INNER_PLUGIN_BUILD } from "./typedefs.ts"
 
 
@@ -152,8 +160,8 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 			long_build_controller = this.ctx.longBuildController
 
 		const transform_interceptor_callback = async (args: OnLoadArgs): Promise<void | [
-			onload_results: OnLoadResult | null | undefined,
-			additional_info: Pick<BundledInputFile, "loader" | "transformLoader" | "emitData">
+			onload_results: EsbuildOnLoadResult | null | undefined,
+			additional_info: Pick<BundledInputFile, "loader" | "transformLoader" | "emitData">,
 		]> => {
 			const
 				{ namespace, path, suffix, with: with_attrs } = args,
@@ -194,18 +202,21 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 						long_build_controller.steps.at(-1)!.pushImports(importer_key, imports)
 					}
 					return [
-						transform_result satisfies OnLoadResult,
-						{ loader, transformLoader: transform_result.loader ?? "", emitData }
+						transform_result satisfies EsbuildOnLoadResult,
+						{ loader, transformLoader: transform_result.loader ?? "", emitData },
 					]
 				}
 			}
 
 			// at this point, we've already tried all available transformation handlers, but none produced a viable result,
 			// hence we shall return the original result directly to esbuild.
-			return [onload_result, { emitData: undefined, loader: loader, transformLoader: loader }]
+			return [
+				onload_result as EsbuildOnLoadResult,
+				{ emitData: undefined, loader: loader, transformLoader: loader as EsbuildLoaderType },
+			]
 		}
 
-		const resource_registry_interceptor_callback: OnLoadCallback = async (args) => {
+		const resource_registry_interceptor_callback: EsbuildOnLoadCallback = async (args) => {
 			const [result, additional_info] = await transform_interceptor_callback(args) ?? []
 			if (!isNull(result)) {
 				const
@@ -220,7 +231,7 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 			return result
 		}
 
-		const long_build_interceptor_callback: OnLoadCallback = async (args) => {
+		const long_build_interceptor_callback: EsbuildOnLoadCallback = async (args) => {
 			const result = await resource_registry_interceptor_callback(args)
 			// every loaded result indicates that a file has gone out of circulation,
 			// and hence we must decrement the `remainingFilesCounter` of the long-build plugin.

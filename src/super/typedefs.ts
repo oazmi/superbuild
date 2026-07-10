@@ -4,7 +4,16 @@
 */
 
 import type { AutoSuggestOrString, MaybePromiseOrNull } from "../deps.ts"
-import type { EsbuildLoaderType, EsbuildMetafileImportProps, EsbuildOnEndResult, EsbuildOutputsImportKind, EsbuildPartialMessage, OnLoadResult } from "../esbuild/strongtypes.ts"
+import type {
+	EsbuildLoaderType,
+	EsbuildMetafileImportProps,
+	EsbuildOnEndResult,
+	OnLoadArgs as EsbuildOnLoadArgs,
+	OnLoadOptions as EsbuildOnLoadOptions,
+	OnLoadResult as EsbuildOnLoadResult,
+	EsbuildOutputsImportKind,
+	EsbuildPartialMessage,
+} from "../esbuild/strongtypes.ts"
 import type { longBuildPluginSetup } from "../plugins/long_build.ts"
 import type { EsbuildNativeResolver, nativeReplicaPluginSetup } from "../plugins/native_replica.ts"
 import type { AbsolutePath, Path, RelativePath, ResolvedPath } from "../typedefs.ts"
@@ -18,6 +27,24 @@ import type { SuperPluginBuild } from "./plugin_build.ts"
  * such as in the case of {@link EsbuildNativeResolver}, which is spawned by {@link nativeReplicaPluginSetup}.
 */
 export const INNER_PLUGIN_BUILD = Symbol()
+
+
+//// `onLoad` ////
+
+/** type alias for `esbuild.OnLoadOptions`. */
+export type OnLoadOptions = EsbuildOnLoadOptions
+
+/** type alias for `esbuild.OnLoadArgs`, slightly tweaked for this library's internal use. */
+export type OnLoadArgs = EsbuildOnLoadArgs
+
+/** type alias for `esbuild.OnLoadResult`, except that the `loader` can be set to anything arbitrary. */
+export type OnLoadResult = Omit<EsbuildOnLoadResult, "loader"> & { loader?: AutoSuggestOrString<EsbuildLoaderType> }
+
+/** type alias for the callback function provided to the `OnLoad` function (aka `esbuild.PluginBuild["OnLoad"]`). */
+export type OnLoadCallback = (args: OnLoadArgs) => MaybePromiseOrNull<OnLoadResult>
+
+
+//// `onTransform` ////
 
 export interface OnTransformOptions {
 	filter: RegExp
@@ -140,6 +167,9 @@ export interface OnTransformResult {
 */
 export type OnTransformCallback = (args: OnTransformArgs) => MaybePromiseOrNull<OnTransformResult>
 
+
+//// imports related ////
+
 /** specify an entity/file that should be imported for a given loaded entity (during the transformation stage). */
 export interface ImportEntity<K = any> {
 	/** include a unique key that you can use to trace back the imported entity,
@@ -244,6 +274,9 @@ export interface ImportedEntity<K = any> extends Pick<NonNullable<ImportEntity<K
 	*/
 	write: boolean
 }
+
+
+//// `onEmit` ////
 
 /** a single input file filteration rule used in {@link OnEmitOptions}. */
 export interface OnEmitOptions_InputFilter {
