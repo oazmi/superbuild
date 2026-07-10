@@ -3,7 +3,9 @@
  * @module
 */
 
-import { bind_array_push, console_log, crc32, date_now, dom_clearTimeout, dom_setTimeout, isArray, isString, math_max, object_entries } from "./deps.ts"
+import { bind_array_push, console_log, crc32, date_now, DEBUG, dom_clearTimeout, dom_setTimeout, isArray, isString, math_max, noop, object_entries } from "./deps.ts"
+import type { LoggerFunction } from "./typedefs.ts"
+
 
 export const concatArrays = <T>(arr1?: Array<T>, arr2?: Array<T>): Array<T> | undefined => {
 	return (!arr1 && !arr2) ? undefined
@@ -31,6 +33,7 @@ export const mergeMapArrays = <K, T>(map1: Map<K, Array<T>>, map2: Map<K, Array<
 export const cancelableDelayedPromiseResolver = <T>(
 	promise_resolver: (value: T) => void,
 	original_delay: number,
+	logger: LoggerFunction = noopLogger,
 ): [resolve: (value: T) => void, cancel: (delay?: number) => void] => {
 	let
 		timer_id = -1,
@@ -38,10 +41,12 @@ export const cancelableDelayedPromiseResolver = <T>(
 	const
 		resolve = (value: T) => {
 			dom_clearTimeout(timer_id) // clear out any previous timer.
+			if (DEBUG.LOG) { logger(`delayed promise will resolve in ${delay}ms.`) }
 			timer_id = dom_setTimeout(promise_resolver, delay, value)
 		},
 		cancel = (new_delay: number = original_delay) => {
 			dom_clearTimeout(timer_id) // clear out any previous timer.
+			if (DEBUG.LOG) { logger(`delayed promise was canceled.`) }
 			delay = new_delay
 		}
 	return [resolve, cancel]
@@ -70,3 +75,20 @@ export const splitNamespacedPath = (resolved_namespaced_path: string): { namespa
 		path = resolved_namespaced_path.slice(namespace_splitting_idx + 1)
 	return { namespace, path }
 }
+
+/** alias for `console.log`. this is the default logging function. */
+export const logLogger: LoggerFunction = console_log
+
+const arrayLoggerFactory = (history: Array<any[]>): LoggerFunction => {
+	const history_push = bind_array_push(history)
+	return (...data: any[]): void => { history_push(data) }
+}
+
+/** the history of the {@link arrayLogger} function gets contained here. */
+export const arrayLoggerHistory: Array<any[]> = []
+
+/** an array based logging function. the log history is kept in the {@link arrayLoggerHistory} array. */
+export const arrayLogger: LoggerFunction = /*@__PURE__*/ arrayLoggerFactory(arrayLoggerHistory)
+
+/** a no operation logger function that does nothing. */
+export const noopLogger: LoggerFunction = noop

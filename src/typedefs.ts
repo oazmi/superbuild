@@ -1,8 +1,5 @@
 /** this module contains base type definitions.
  *
- * TODO: why not use these annotations on the metafile class and related entries?
- * otherwise, these definitions are kind of pointless.
- *
  * @module
 */
 

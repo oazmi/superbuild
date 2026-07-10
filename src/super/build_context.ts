@@ -3,18 +3,18 @@
  * its main purpose is to inject some required plugins at their correct position, hold a few stateful objects,
  * and create a wrapper on top of the user's provided plugins so that the extended plugin api becomes available to them.
  *
- * TODO: centralize logging as a part of the build context.
- *
  * @module
 */
 
-import { isArray, parseFilepathInfo } from "../deps.ts"
+import { type DEBUG, isArray, parseFilepathInfo } from "../deps.ts"
 import { Metafile, type MetafileConfig } from "../esbuild/metafile.ts"
 import type { EsbuildBuildOptions, EsbuildBuildResult, EsbuildOnEndCallback } from "../esbuild/strongtypes.ts"
+import { logLogger, noopLogger } from "../funcdefs.ts"
 import { emissionsDriverPlugin } from "../plugins/emissions_driver.ts"
 import { LongBuildController, longBuildPlugin } from "../plugins/long_build.ts"
 import { nativeReplicaPlugin } from "../plugins/native_replica.ts"
-import type { NamespacedPath } from "../typedefs.ts"
+import type { LoggerFunction, NamespacedPath } from "../typedefs.ts"
+import type { SuperBuildExclusiveOptions } from "./build.ts"
 import { SuperPlugin } from "./plugin.ts"
 import type { SuperPluginBuild } from "./plugin_build.ts"
 import type { BundledInputFile, OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions, OnTransformResult } from "./typedefs.ts"
@@ -69,8 +69,17 @@ export class SuperBuildContext {
 	/** indicates if the original `allowOverwrite` option was enabled when the build was started. */
 	public shouldOverwrite: boolean = false
 
-	constructor() {
-		this.longBuildController = new LongBuildController()
+	/** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
+	public log: LoggerFunction
+
+	constructor(super_options: SuperBuildExclusiveOptions) {
+		const
+			{ debuggingLogs = false } = super_options,
+			log = debuggingLogs === false ? noopLogger
+				: debuggingLogs === true ? logLogger
+					: debuggingLogs
+		this.log = log
+		this.longBuildController = new LongBuildController({ debuggingLogs: log })
 	}
 
 	/** this method wraps a {@link SuperPlugin} on top of each of the user's base plugin,

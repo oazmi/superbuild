@@ -7,11 +7,12 @@
  * @module
 */
 
-import { array_isEmpty, escapeLiteralStringForRegex, json_stringify, parseFilepathInfo, pathToPosixPath, promiseOutside } from "../deps.ts"
+import { array_isEmpty, DEBUG, escapeLiteralStringForRegex, json_stringify, parseFilepathInfo, pathToPosixPath, promiseOutside } from "../deps.ts"
 import type { EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs, OnResolveArgs, OnResolveResult } from "../esbuild/strongtypes.ts"
-import { cancelableDelayedPromiseResolver, generateUuid } from "../funcdefs.ts"
+import { cancelableDelayedPromiseResolver, generateUuid, noopLogger } from "../funcdefs.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
 import type { ImportEntity } from "../super/typedefs.ts"
+import type { LoggerFunction } from "../typedefs.ts"
 
 
 const enum LONGBUILD {
@@ -58,6 +59,14 @@ export const console_log = (...args: any[]) => {
 }
 
 const import_statement_regex = new RegExp("await\\s+import\\s*\\(\\s*(?<quote>[\"'`])(?<importPath>.*?)\\k<quote>\\s*\\)", "g")
+
+export interface LongBuildControllerConfig {
+	/** enable internal logging for the {@link LongBuildController}, when {@link DEBUG.LOG} is enabled.
+	 *
+	 * @defaultValue {@link noopLogger}
+	*/
+	debuggingLogs?: LoggerFunction
+}
 
 /** the controller used for commanding the state of the "long build" plugin. */
 export class LongBuildController {
@@ -114,8 +123,12 @@ export class LongBuildController {
 
 	public steps: Array<LongBuildStep> = []
 
-	constructor() {
+	/** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
+	public log: LoggerFunction
+
+	constructor(config?: LongBuildControllerConfig) {
 		const uuid = generateUuid(2)
+		this.log = config?.debuggingLogs ?? noopLogger
 		this.uuid = uuid
 		this.baseFilename = `.(${uuid}).js`
 		this.depsFilename = `deps.(${uuid}).js`
@@ -145,7 +158,7 @@ export class LongBuildController {
 		// cancel any prior resolve that may have been triggered.
 		this.steps[this.buildNumber].cancelResolve()
 		++this.remainingFilesCounter
-		console.log("increment for:", pathname, this.remainingFilesCounter)
+		if (DEBUG.LOG) { this.log(`[LongBuildController]: increment for: "${pathname}". remaining files: ${this.remainingFilesCounter}.`) }
 	}
 
 	public decrementFilesCounter(pathname?: string): void {
@@ -155,7 +168,7 @@ export class LongBuildController {
 		if ((--this.remainingFilesCounter) <= 0) {
 			this.steps[this.buildNumber].signalresolve()
 		}
-		console.log("decrement for:", pathname, this.remainingFilesCounter)
+		if (DEBUG.LOG) { this.log(`[LongBuildController]: decrement for: "${pathname}". remaining files: ${this.remainingFilesCounter}.`) }
 	}
 
 	public cacheResolvedResult(args: OnResolveResult) {
@@ -173,11 +186,11 @@ export class LongBuildController {
 		// if the resolved path has already been encountered once, then esbuild will have it cached, and so, no loader hooks will be called,
 		// therefore we must immediately decrement the files counter, since the loader can't do it any longer.
 		if (this.encounteredPaths.has(key)) {
-			console.log("already encountered:", key)
+			if (DEBUG.LOG) { this.log(`[LongBuildController]: already encountered: "${key}"`) }
 			this.decrementFilesCounter(args.path)
 		}
 		else {
-			console.log("did not encounter:", key)
+			if (DEBUG.LOG) { this.log(`[LongBuildController]: never encountered  : "${key}"`) }
 			this.encounteredPaths.add(key)
 		}
 	}
@@ -226,7 +239,7 @@ export class LongBuildStep {
 		this.buildNumber = build_number
 		this.filename = `${build_number}${parent_controller.baseFilename}`
 		const [promise, resolve, reject] = promiseOutside<void>();
-		[this.signalresolve, this.cancelResolve] = cancelableDelayedPromiseResolver(resolve, LONGBUILD.ONLOAD_MIN_DELAY)
+		[this.signalresolve, this.cancelResolve] = cancelableDelayedPromiseResolver(resolve, LONGBUILD.ONLOAD_MIN_DELAY, parent_controller.log)
 		this.promise = promise
 	}
 

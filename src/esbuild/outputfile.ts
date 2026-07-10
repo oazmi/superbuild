@@ -231,8 +231,6 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 
 	/** rename this file. you can either provide an absolute path, or a relative path.
 	 * relative paths will be resolved with respect to the `cwd` or esbuild's `absWorkingDir`.
-	 *
-	 * TODO: it should actually be relative to the outdir.
 	*/
 	public rename(new_output_path: Path) {
 		// save the original output path into `initialPath` if it has never been assigned before.
