@@ -1,0 +1,88 @@
+{
+  "name": "superbuild",
+  "version": "0.1.0",
+  "description": "A wrapper on top of esbuild to provide you with extended esbuild plugin-api capabilities (hence a super set of esbuild).",
+  "keywords": [
+    "superbuild",
+    "super-build",
+    "esbuild",
+    "esbuild-plugin",
+    "build-tools",
+    "bundler",
+    "plugin",
+    "minifier",
+    "transform",
+    "emit"
+  ],
+  "author": "Omar Azmi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oazmi/superbuild.git"
+  },
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/oazmi/superbuild/issues"
+  },
+  "module": "./esm/mod.js",
+  "exports": {
+    ".": {
+      "import": "./esm/mod.js"
+    },
+    "./super": {
+      "import": "./esm/super/mod.js"
+    },
+    "./esbuild/native": {
+      "import": "./esm/esbuild/native.js"
+    },
+    "./esbuild/metafile": {
+      "import": "./esm/esbuild/metafile.js"
+    },
+    "./esbuild/outputfile": {
+      "import": "./esm/esbuild/outputfile.js"
+    },
+    "./esbuild/strongtypes": {
+      "import": "./esm/esbuild/strongtypes.js"
+    },
+    "./esbuild/weaktypes": {
+      "import": "./esm/esbuild/weaktypes.js"
+    },
+    "./esbuild/typedefs": {
+      "import": "./esm/esbuild/typedefs.js"
+    },
+    "./plugins/long_build": {
+      "import": "./esm/plugins/long_build.js"
+    },
+    "./plugins/native_replica": {
+      "import": "./esm/plugins/native_replica.js"
+    },
+    "./plugins/emissions_driver": {
+      "import": "./esm/plugins/emissions_driver.js"
+    },
+    "./funcdefs": {
+      "import": "./esm/funcdefs.js"
+    },
+    "./typedefs": {
+      "import": "./esm/typedefs.js"
+    }
+  },
+  "scripts": {
+    "build-dist": "npm run build-esm && npm run build-esm-minify && npm run build-iife && npm run build-iife-minify",
+    "build-esm": "npx esbuild \"./src/mod.ts\" --bundle --format=esm --external:node:fs/promises --external:node:child_process --outfile=\"./dist/@oazmi/superbuild.esm.js\"",
+    "build-esm-minify": "npx esbuild \"./src/mod.ts\" --bundle --minify --format=esm --external:node:fs/promises --external:node:child_process --outfile=\"./dist/@oazmi/superbuild.esm.min.js\"",
+    "build-iife": "npx esbuild \"./src/mod.ts\" --bundle --format=iife --external:node:fs/promises --external:node:child_process --outfile=\"./dist/@oazmi/superbuild.iife.js\"",
+    "build-iife-minify": "npx esbuild \"./src/mod.ts\" --bundle --minify --format=iife --external:node:fs/promises --external:node:child_process --outfile=\"./dist/@oazmi/superbuild.iife.min.js\""
+  },
+  "type": "module",
+  "sideEffects": false,
+  "dependencies": {
+    "@oazmi/kitchensink": "0.10.0",
+    "@oazmi/esbuild-types": "0.28.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0",
+    "typescript": "^5.6.0",
+    "esbuild": "^0.25.0",
+    "typedoc": "^0.28.1"
+  },
+  "_generatedBy": "dnt@dev"
+}
