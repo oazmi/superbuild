@@ -1,5 +1,5 @@
 {
-  "name": "superbuild",
+  "name": "@oazmi/superbuild",
   "version": "0.1.0",
   "description": "A wrapper on top of esbuild to provide you with extended esbuild plugin-api capabilities (hence a super set of esbuild).",
   "keywords": [
