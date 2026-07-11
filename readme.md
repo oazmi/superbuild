@@ -10,7 +10,7 @@ A wrapper on top of esbuild to provide you with extended esbuild Plugin-API capa
 
 ```ts
 import esbuild from "npm:esbuild"
-import { SuperBuild } from "jsr:@oazmi/superbuild" // or use "npm:superbuild".
+import { SuperBuild } from "jsr:@oazmi/superbuild" // or use "npm:@oazmi/superbuild".
 
 const sbuild = new SuperBuild(esbuild)
 const result = await sbuild.build({
@@ -136,6 +136,13 @@ const my_plugin_setup: SuperPluginSetup = (build: SuperPluginBuild) => {
 - Cross-runtime compatible (deno, node, bun, and the web (only when `write` is `false`)).
 - You can rename output files during the emission stage, and the updated paths will be reflected in the dependent output files' `args.imports`.
   This is because the emitted output files are always updated in their natural topological dependency order (in parallel).
+
+## Documentation and Links
+
+- Documentation page: [https://oazmi.github.io/superbuild](https://oazmi.github.io/superbuild).
+- JSR release page: [https://jsr.io/@oazmi/superbuild](https://jsr.io/@oazmi/superbuild).
+- NPM release page: [https://www.npmjs.com/package/@oazmi/superbuild](https://www.npmjs.com/package/@oazmi/superbuild).
+- Github repository: [https://github.com/oazmi/superbuild](https://github.com/oazmi/superbuild).
 
 ## Prior Art
 
