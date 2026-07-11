@@ -8,14 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: clone npm repo branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: "npm"
 
       - name: setup node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
+          package-manager-cache: false
           registry-url: "https://registry.npmjs.org"
 
       - name: install dependencies

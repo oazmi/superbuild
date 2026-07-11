@@ -36,7 +36,9 @@ export const cancelableDelayedPromiseResolver = <T>(
 	logger: LoggerFunction = noopLogger,
 ): [resolve: (value: T) => void, cancel: (delay?: number) => void] => {
 	let
-		timer_id = -1,
+		// bloody deno's node-compatibility "enhancements" is creating more incompatibilities with existing well known web-compatible constructs.
+		// man, do I hate the direction deno is heading. this didn't use to be an issue pre-v2.8 of deno.
+		timer_id: number | ReturnType<typeof setTimeout> = -1,
 		delay = original_delay
 	const
 		resolve = (value: T) => {

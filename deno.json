@@ -81,7 +81,14 @@
 			"minifier",
 			"transform",
 			"emit"
-		]
+		],
+		"scripts": {
+			"build-dist": "npm run build-esm && npm run build-esm-minify && npm run build-iife && npm run build-iife-minify",
+			"build-esm": "npx esbuild \"./src/mod.ts\" --bundle --format=esm --external:node:fs/promises --external:node:child_process --outfile=\"./dist/@oazmi/superbuild.esm.js\"",
+			"build-esm-minify": "npx esbuild \"./src/mod.ts\" --bundle --minify --format=esm --external:node:fs/promises --external:node:child_process --outfile=\"./dist/@oazmi/superbuild.esm.min.js\"",
+			"build-iife": "npx esbuild \"./src/mod.ts\" --bundle --format=iife --external:node:fs/promises --external:node:child_process --outfile=\"./dist/@oazmi/superbuild.iife.js\"",
+			"build-iife-minify": "npx esbuild \"./src/mod.ts\" --bundle --minify --format=iife --external:node:fs/promises --external:node:child_process --outfile=\"./dist/@oazmi/superbuild.iife.min.js\""
+		}
 	},
 	"buildDist": {
 		"dir": "./dist/",
