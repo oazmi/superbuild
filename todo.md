@@ -15,8 +15,12 @@
 
 ## pre-version `0.1.x` todo list
 
+- [ ] in [`/readme.md`](./readme.md) include information on how to initialize a sub-build,
+      and on how to access the underlying true `build.esbuild` object (rather than the overloaded version).
+
 ## pre-version `0.1.0` todo list
 
+- [x] update [`/readme.md`](./readme.md).
 - [x] rename repo from `super-build` to `superbuild`.
 - [x] disable global debug logging, and make it possible to enable/disable/customize debug logs from the build options.
   > (2026-07-09) DONE: added the interface [`SuperBuildOptions`](./src/super/build.ts) that extends esbuild's build options,

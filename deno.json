@@ -60,6 +60,7 @@
 		"strict": true
 	},
 	"packageJson": {
+		"name": "superbuild",
 		"dependencies": {
 			"@oazmi/kitchensink": "0.10.0",
 			"@oazmi/esbuild-types": "0.28.0"
@@ -69,7 +70,18 @@
 			"esbuild": "^0.25.0",
 			"typedoc": "^0.28.1"
 		},
-		"keywords": ["superbuild", "super-build", "esbuild", "esbuild-plugin", "build-tools", "bundler", "plugin", "minifier"]
+		"keywords": [
+			"superbuild",
+			"super-build",
+			"esbuild",
+			"esbuild-plugin",
+			"build-tools",
+			"bundler",
+			"plugin",
+			"minifier",
+			"transform",
+			"emit"
+		]
 	},
 	"buildDist": {
 		"dir": "./dist/",
