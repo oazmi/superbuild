@@ -29,7 +29,7 @@
     mod
   ));
 
-  // src/deps/jsr.io/@oazmi/kitchensink/0.10.0/src/alias.ts
+  // src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/alias.ts
   var array_constructor = Array;
   var date_constructor = Date;
   var json_constructor = JSON;
@@ -66,10 +66,13 @@
   var dom_encodeURI = encodeURI;
   var dom_decodeURI = decodeURI;
 
-  // src/deps/jsr.io/@oazmi/kitchensink/0.10.0/src/struct.ts
+  // src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/struct.ts
   var isComplex = (obj) => {
     const obj_type = typeof obj;
     return obj_type === "object" || obj_type === "function";
+  };
+  var isNull = (obj) => {
+    return obj === void 0 || obj === null;
   };
   var isObject = (obj) => {
     return typeof obj === "object";
@@ -139,10 +142,10 @@
     });
   }
 
-  // src/deps/jsr.io/@oazmi/kitchensink/0.10.0/src/eightpack.ts
+  // src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/eightpack.ts
   var textEncoder = /* @__PURE__ */ new TextEncoder();
 
-  // src/deps/jsr.io/@oazmi/kitchensink/0.10.0/src/stringman.ts
+  // src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/stringman.ts
   var commonPrefix = (inputs) => {
     const len = inputs.length;
     if (len < 1) return "";
@@ -161,7 +164,7 @@
   var escapeLiteralCharsRegex = /[.*+?^${}()|[\]\\]/g;
   var escapeLiteralStringForRegex = (str) => str.replaceAll(escapeLiteralCharsRegex, "\\$&");
 
-  // src/deps/jsr.io/@oazmi/kitchensink/0.10.0/src/pathman.ts
+  // src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/pathman.ts
   var uriProtocolSchemeMap = /* @__PURE__ */ object_entries({
     "node:": "node",
     "npm:": "npm",
@@ -387,7 +390,7 @@
     return (...segments) => posix_path_resolver(...segments.map(pathToPosixPath));
   };
 
-  // src/deps/jsr.io/@oazmi/kitchensink/0.10.0/src/crossenv.ts
+  // src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/crossenv.ts
   var global_this_object = dntGlobalThis;
   var currentRuntimeValidationFnMap = {
     [0 /* DENO */]: () => global_this_object.Deno?.version ? true : false,
@@ -599,7 +602,7 @@ please report this issue to "https://github.com/omar-azmi/kitchensink_ts/issues"
     return writeFile(runtime_enum, file_path, new Uint8Array(0));
   };
 
-  // src/deps/jsr.io/@oazmi/kitchensink/0.10.0/src/cryptoman.ts
+  // src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/cryptoman.ts
   var createCrc32Table = () => {
     const polynomial = -306674912, crc32_table2 = new Int32Array(256);
     for (let i = 0; i < 256; i++) {
@@ -623,15 +626,12 @@ please report this issue to "https://github.com/omar-azmi/kitchensink_ts/issues"
   var P = (1n << 255n) - 19n;
   var a24 = (486662n - 2n) / 4n;
 
-  // src/deps/jsr.io/@oazmi/kitchensink/0.10.0/src/promiseman.ts
+  // src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/promiseman.ts
   var promiseOutside = promise_outside;
   var THROTTLE_REJECT = /* @__PURE__ */ Symbol(1 /* MINIFY */ || "a rejection by a throttled function");
   var TIMEOUT = /* @__PURE__ */ Symbol(1 /* MINIFY */ || "a timeout by an awaited promiseTimeout function");
 
   // src/deps.ts
-  var isNull = (obj) => {
-    return obj === void 0 || obj === null;
-  };
   var noop2 = (() => void 0);
   var urlToString = (url) => {
     return isString(url) ? url : url.href;
@@ -1707,7 +1707,7 @@ ${json_stringify(response.headers)}`;
         resolveExtensions,
         tsconfig,
         tsconfigRaw,
-        bundle: false,
+        bundle: true,
         minify: false,
         write: false,
         outdir: "./temp/",

@@ -1,6 +1,6 @@
 {
   "name": "@oazmi/superbuild",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A wrapper on top of esbuild to provide you with extended esbuild plugin-api capabilities (hence a super set of esbuild).",
   "keywords": [
     "superbuild",
@@ -49,13 +49,13 @@
     "./esbuild/typedefs": {
       "import": "./esm/esbuild/typedefs.js"
     },
-    "./plugins/long_build": {
+    "./plugins/long-build": {
       "import": "./esm/plugins/long_build.js"
     },
-    "./plugins/native_replica": {
+    "./plugins/native-replica": {
       "import": "./esm/plugins/native_replica.js"
     },
-    "./plugins/emissions_driver": {
+    "./plugins/emissions-driver": {
       "import": "./esm/plugins/emissions_driver.js"
     },
     "./funcdefs": {
@@ -75,7 +75,7 @@
   "type": "module",
   "sideEffects": false,
   "dependencies": {
-    "@oazmi/kitchensink": "0.10.0",
+    "@oazmi/kitchensink": "0.10.1",
     "@oazmi/esbuild-types": "0.28.0"
   },
   "devDependencies": {

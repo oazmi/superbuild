@@ -94,7 +94,7 @@ export class EsbuildNativeResolver {
             absWorkingDir, alias, conditions, external,
             mainFields, nodePaths, packages, platform,
             resolveExtensions, tsconfig, tsconfigRaw,
-            bundle: false, minify: false, write: false,
+            bundle: true, minify: false, write: false,
             outdir: "./temp/", entryPoints: [entrypoint],
         };
     }
