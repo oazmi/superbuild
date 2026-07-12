@@ -4,6 +4,10 @@
 
 ## issues list
 
+## pre-version `0.3.x` todo list
+
+- [ ] give a thorough explanation on the inner workings of each of the three plugins, and what problems they try to solve.
+
 ## pre-version `0.2.x` todo list
 
 - [ ] add support for `stdin` entrypoint by adding a new plugin that replaces `initialOptions.stdin` with a `<virtual-stdin>` entrypoint,
@@ -13,12 +17,24 @@
       which will default to the user's local fs, but can be made to have an alternate meaning (such as a url).
 - [ ] add proper tests under [`/test/`](./test/), or at least include proper examples under [`/examples/`](./examples/).
 
-## pre-version `0.1.x` todo list
+## pre-version `0.1.2` todo list
 
 - [ ] in [`/readme.md`](./readme.md) include information on how to initialize a sub-build,
       and on how to access the underlying true `build.esbuild` object (rather than the overloaded version).
 
-## pre-version `0.1.0` todo list
+## pre-version `0.1.2` todo list
+
+- [ ] generalize/weaken the typing so that the library becomes compatible with any version of esbuild.
+
+## (2026-07-12) pre-version `0.1.1` todo list
+
+- [x] in the [`EsbuildNativeResolver`](./src/plugins/native_replica.ts), the `initOptions.bundle` **must** be set to `true`,
+      otherwise esbuild will refuse to accept `initOptions.external` as a valid option
+      (since all references _will_ be considered to be external anyway).
+- [x] fix accidental use of underscore instead of hyphen in the `exports` of [`/deno.json`](./deno.json).
+- [x] enable `provenance` in the [`publish-npm.yml`](./.github/workflows/publish-npm.yml) workflow.
+
+## (2026-07-10) pre-version `0.1.0` todo list
 
 - [x] update [`/readme.md`](./readme.md).
 - [x] rename repo from `super-build` to `superbuild`.

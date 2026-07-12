@@ -1,6 +1,6 @@
 {
 	"name": "@oazmi/superbuild",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "A wrapper on top of esbuild to provide you with extended esbuild plugin-api capabilities (hence a super set of esbuild).",
 	"author": "Omar Azmi",
 	"license": "Apache-2.0",
@@ -25,16 +25,17 @@
 		"./esbuild/strongtypes": "./src/esbuild/strongtypes.ts",
 		"./esbuild/weaktypes": "./src/esbuild/weaktypes.ts",
 		"./esbuild/typedefs": "./src/esbuild/typedefs.ts",
-		"./plugins/long_build": "./src/plugins/long_build.ts",
-		"./plugins/native_replica": "./src/plugins/native_replica.ts",
-		"./plugins/emissions_driver": "./src/plugins/emissions_driver.ts",
+		"./plugins/long-build": "./src/plugins/long_build.ts",
+		"./plugins/native-replica": "./src/plugins/native_replica.ts",
+		"./plugins/emissions-driver": "./src/plugins/emissions_driver.ts",
 		"./funcdefs": "./src/funcdefs.ts",
 		"./typedefs": "./src/typedefs.ts"
 	},
 	"imports": {
-		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.10.0",
+		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.10.1",
 		"@oazmi/esbuild-types": "jsr:@oazmi/esbuild-types@0.28.0"
 	},
+	"minimumDependencyAge": "0",
 	"nodeModulesDir": "none",
 	"publish": {
 		"exclude": [
@@ -61,7 +62,7 @@
 	},
 	"packageJson": {
 		"dependencies": {
-			"@oazmi/kitchensink": "0.10.0",
+			"@oazmi/kitchensink": "0.10.1",
 			"@oazmi/esbuild-types": "0.28.0"
 		},
 		"devDependencies": {

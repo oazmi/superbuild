@@ -6,6 +6,9 @@ on:
 jobs:
   publish-to-npm:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # this token supposedly enables provenance with NPM.
     steps:
       - name: clone npm repo branch
         uses: actions/checkout@v7
@@ -23,8 +26,6 @@ jobs:
         run: npm ci
 
       - name: publish
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${{secrets.NPM_TOKEN}}" > .npmrc
-          npm publish --access public
+        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

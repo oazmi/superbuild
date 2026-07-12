@@ -11,8 +11,8 @@
 import { escapeLiteralStringForRegex, fileUrlToLocalPath, json_stringify, promiseOutside, resolveAsUrl } from "../deps.ts"
 import { guessExtensionLoader_Factory } from "../esbuild/native.ts"
 import type { EsbuildBuildOptions, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, EsbuildResolveOptions, EsbuildResolveResult, OnLoadArgs, OnResolveArgs } from "../esbuild/strongtypes.ts"
-import { INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
+import { INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
 
 
 /** this plugin replicates esbuild's native path resolution and loading behavior through the plugin api layer.
@@ -132,7 +132,7 @@ export class EsbuildNativeResolver {
 			absWorkingDir, alias, conditions, external,
 			mainFields, nodePaths, packages, platform,
 			resolveExtensions, tsconfig, tsconfigRaw,
-			bundle: false, minify: false, write: false,
+			bundle: true, minify: false, write: false,
 			outdir: "./temp/", entryPoints: [entrypoint],
 		}
 	}
