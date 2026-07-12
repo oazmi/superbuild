@@ -2,502 +2,494 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 	<url>
 		<loc>https://oazmi.github.io/superbuild/index.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/hierarchy.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/esbuild_metafile.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/esbuild_metafile.MetafileConfig.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/classes/esbuild_metafile.Metafile.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/esbuild_native.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/esbuild_native.loaderFromFileExtension.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_native.GuessExtensionLoader.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/esbuild_native.guessExtensionLoader_Factory.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/esbuild_outputfile.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/esbuild_outputfile.ImportedEntityNode.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/esbuild_outputfile.ExternalFileEntity.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_outputfile.OutputFileEntityMap.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_outputfile.WriteFileFn.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/classes/esbuild_outputfile.OutputFileEntity.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/esbuild_strongtypes.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/esbuild_strongtypes.Esbuild.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.OnResolveOptions.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.OnResolveArgs.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.OnResolveResult.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.OnResolveCallback.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.OnLoadOptions.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.OnLoadArgs.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.OnLoadResult.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.OnLoadCallback.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildResolveOptions.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildResolveResult.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildOnStartResult.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildOnStartCallback.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildOnEndResult.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildOnEndCallback.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildBuildOptions.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildBuildResult.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildBuild.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildPlugin.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildPluginSetup.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildPluginBuild.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildLoaderType.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildLoaderTypeOrEmpty.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildImportKind.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildOutputsImportKind.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildMetafile.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildMetafileImportProps.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildMessage.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.EsbuildPartialMessage.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_strongtypes.SameShape.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/esbuild_typedefs.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/enums/esbuild_typedefs.PLUGIN_NAMESPACE.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/variables/esbuild_typedefs.defaultEsbuildNamespaces.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/variables/esbuild_typedefs.allEsbuildLoaders.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_typedefs.CommonPluginData.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_typedefs.EsbuildEntryPointType.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_typedefs.EsbuildEntryPointsType.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_typedefs.ImportMap.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/esbuild_typedefs.EsbuildOutputFile.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/variables/esbuild_typedefs.defaultExtensionToLoaderMap.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/esbuild_weaktypes.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_weaktypes.EsbuildPluginCompatible.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_weaktypes.EsbuildPluginSetupCompatible.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_weaktypes.EsbuildPluginBuildCompatible.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_weaktypes.EsbuildBuildOptionsCompatible.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_weaktypes.EsbuildBuildResultCompatible.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_weaktypes.EsbuildBuildCompatible.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_weaktypes.EsbuildLoaderTypeCompatible.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/esbuild_weaktypes.EsbuildMessageCompatible.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/funcdefs.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/funcdefs.concatArrays.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/funcdefs.mergeMapArrays.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/funcdefs.cancelableDelayedPromiseResolver.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/funcdefs.generateUuid.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/funcdefs.splitNamespacedPath.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/variables/funcdefs.logLogger.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/variables/funcdefs.arrayLoggerHistory.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/variables/funcdefs.arrayLogger.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/variables/funcdefs.noopLogger.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/mod.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/mod.SuperBuildOptions.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/mod.SuperBuildExclusiveOptions.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/classes/mod.SuperBuild.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/classes/mod.SuperBuildContext.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/mod.SuperPluginSetup.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/classes/mod.SuperPlugin.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/classes/mod.SuperPluginBuild.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/variables/mod.INNER_PLUGIN_BUILD.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
-	</url>
-	<url>
-		<loc>https://oazmi.github.io/superbuild/types/mod.OnLoadOptions.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
-	</url>
-	<url>
-		<loc>https://oazmi.github.io/superbuild/types/mod.OnLoadArgs.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/mod.OnLoadResult.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/mod.OnLoadCallback.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/mod.OnTransformOptions.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/mod.OnTransformArgs.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/mod.OnTransformResult.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/mod.OnTransformCallback.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/mod.ImportEntity.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/mod.ImportedEntityKind.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/mod.ImportedEntity.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/mod.OnEmitOptions_InputFilter.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/mod.OnEmitOptions.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/mod.BundledInputFile.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/mod.OnEmitArgs.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/mod.OnEmitResult.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/mod.OnEmitCallback.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/plugins_emissions_driver.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/plugins_emissions_driver.EmissionsDriverPluginSetupConfig.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/plugins_emissions_driver.emissionsDriverPluginSetup.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/plugins_emissions_driver.emissionsDriverPlugin.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/plugins_long_build.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/plugins_long_build.LongBuildControllerConfig.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/classes/plugins_long_build.LongBuildController.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/classes/plugins_long_build.LongBuildStep.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/interfaces/plugins_long_build.LongBuildPluginSetupConfig.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/plugins_long_build.longBuildPluginSetup.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/plugins_long_build.longBuildPlugin.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/plugins_native_replica.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/plugins_native_replica.nativeReplicaPluginSetup.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/functions/plugins_native_replica.nativeReplicaPlugin.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/classes/plugins_native_replica.EsbuildNativeResolver.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/super_mod.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/modules/typedefs.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/typedefs.RelativePath.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/typedefs.AbsolutePath.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/typedefs.ResolvedPath.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/typedefs.NamespacedPath.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/typedefs.Path.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/superbuild/types/typedefs.LoggerFunction.html</loc>
-		<lastmod>2026-07-11T03:37:04.673Z</lastmod>
+		<lastmod>2026-07-12T17:17:55.480Z</lastmod>
 	</url>
 </urlset>

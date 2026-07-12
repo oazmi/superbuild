@@ -8,11 +8,10 @@ import type {
 	EsbuildLoaderType,
 	EsbuildMetafileImportProps,
 	EsbuildOnEndResult,
-	OnLoadArgs as EsbuildOnLoadArgs,
-	OnLoadOptions as EsbuildOnLoadOptions,
 	OnLoadResult as EsbuildOnLoadResult,
 	EsbuildOutputsImportKind,
 	EsbuildPartialMessage,
+	OnLoadArgs,
 } from "../esbuild/strongtypes.ts"
 import type { longBuildPluginSetup } from "../plugins/long_build.ts"
 import type { EsbuildNativeResolver, nativeReplicaPluginSetup } from "../plugins/native_replica.ts"
@@ -20,6 +19,15 @@ import type { AbsolutePath, Path, RelativePath, ResolvedPath } from "../typedefs
 import type { SuperBuildContext } from "./build_context.ts"
 import type { SuperPluginBuild } from "./plugin_build.ts"
 
+
+export type {
+	OnLoadArgs,
+	OnLoadOptions,
+	OnResolveArgs,
+	OnResolveCallback,
+	OnResolveOptions,
+	OnResolveResult
+} from "../esbuild/strongtypes.ts"
 
 /** this symbol gives you access to the **true** internal `PluginBuild` object that was used for constructing a {@link SuperPluginBuild}.
  * it can be used as a means to check whether you're inside super-build or not,
@@ -30,12 +38,6 @@ export const INNER_PLUGIN_BUILD = Symbol()
 
 
 //// `onLoad` ////
-
-/** type alias for `esbuild.OnLoadOptions`. */
-export type OnLoadOptions = EsbuildOnLoadOptions
-
-/** type alias for `esbuild.OnLoadArgs`, slightly tweaked for this library's internal use. */
-export type OnLoadArgs = EsbuildOnLoadArgs
 
 /** type alias for `esbuild.OnLoadResult`, except that the `loader` can be set to anything arbitrary. */
 export type OnLoadResult = Omit<EsbuildOnLoadResult, "loader"> & { loader?: AutoSuggestOrString<EsbuildLoaderType> }
