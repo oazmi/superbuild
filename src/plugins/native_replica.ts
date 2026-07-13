@@ -133,7 +133,8 @@ export class EsbuildNativeResolver {
 			mainFields, nodePaths, packages, platform,
 			resolveExtensions, tsconfig, tsconfigRaw,
 			bundle: true, minify: false, write: false,
-			outdir: "./temp/", entryPoints: [entrypoint],
+			format: "esm", outdir: "./temp/",
+			entryPoints: [entrypoint],
 		}
 	}
 

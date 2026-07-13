@@ -17,14 +17,36 @@
       which will default to the user's local fs, but can be made to have an alternate meaning (such as a url).
 - [ ] add proper tests under [`/test/`](./test/), or at least include proper examples under [`/examples/`](./examples/).
 
-## pre-version `0.1.2` todo list
+## pre-version `0.1.4` todo list
 
 - [ ] in [`/readme.md`](./readme.md) include information on how to initialize a sub-build,
       and on how to access the underlying true `build.esbuild` object (rather than the overloaded version).
 
-## pre-version `0.1.2` todo list
+## pre-version `0.1.3` todo list
 
 - [ ] generalize/weaken the typing so that the library becomes compatible with any version of esbuild.
+- [ ] currently, if a resource does not resolve (i.e. fails to resolve), then the build process halts indefinitely,
+      due to the `remainingFilesCounter` of the long-build controller never falling to zero.
+
+## pre-version `0.1.2` todo list
+
+- [x] fix an issue with [`LongBuildController.parseLongBuildFileContent`](./src/plugins/long_build.ts),
+      where if esbuild is set to using `"iife"` or `"cjs"` for its `format`,
+      the generated bundled long-build file becomes un-importable, and hence unparsable.
+      another sub-issue is the fact that top-level awaits is not permitted in `"iife"` format, causing the build to terminate fatally.
+      you would think that this won't be an issue because everyone uses `"esm"`.
+      however, anyone might use a sub-build, where they might either wish to use non-esm for bundling, or use the default `"iife"` format by accident,
+      and in such cases, the newly created long-build file in the sub-build will fail/terminate and also ruin the main build.
+  > (2026-07-13) DONE: we can now specify `LongBuildController.format` to change if `LongBuildStep.prepareLongBuildFileContent`
+  > needs to modify the contents and the export mechanism to make it non-esm compatible and without top-level awaits.
+  > and then in `LongBuildController.parseLongBuildFileContent`, we once again parse based on what `LongBuildController.format`
+  > is being used, and apply the necessary wrapping and transformations for non-esm output bundled long-build files to become importable es-modules.
+  >
+  > I also changed [`EsbuildNativeResolver.initOptions`](./src/plugins/native_replica.ts) to explicitly set `format: "esm"`,
+  > because `EsbuildNativeResolver` _was_ the reason why I discovered this issue when invoking a sub-build.
+- [ ] add support for specifying generic `loader`s in `SuperBuildOptions`.
+      currently, passing a generic loader to esbuild causes it to halt immediately.
+      I'll need to identify non-supported loaders and pass them separately to the native loader plugin, but not `esbuild.build`.
 
 ## (2026-07-12) pre-version `0.1.1` todo list
 

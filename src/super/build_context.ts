@@ -105,6 +105,7 @@ export class SuperBuildContext {
 		options.plugins.unshift(emissionsDriverPlugin({ ctx: this }))
 		// insert a longbuild plugin at the very beginning so that it can intercept all incoming files.
 		const controller = this.longBuildController
+		controller.format = options.format ? options.format : "iife" // assigning esbuild's default `format` when this option is not provided.
 		options.plugins.unshift(longBuildPlugin({ controller }))
 		options.plugins = options.plugins.map((plugin) => (new SuperPlugin(this, plugin)))
 		// we also insert the unique long build entry point to the options.
