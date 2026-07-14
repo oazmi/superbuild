@@ -8,12 +8,17 @@ import type {
 	Esbuild,
 	EsbuildBuildOptions,
 	EsbuildBuildResult,
+	SameShape,
 } from "../esbuild/strongtypes.ts"
 import type { LoggerFunction } from "../typedefs.ts"
 import { SuperBuildContext } from "./build_context.ts"
 
 
-export interface SuperBuildOptions extends EsbuildBuildOptions {
+export interface SuperBuildOptions extends
+	Omit<EsbuildBuildOptions, keyof SuperBuildExclusiveOptions>,
+	SuperBuildExclusiveOptions { }
+
+export interface SuperBuildExclusiveOptions {
 	/** enable internal logging of super-build for debugging, when {@link DEBUG.LOG} is enabled.
 	 *
 	 * when set to `true`, the logs will show up in your console via `console.log()`.
@@ -24,15 +29,13 @@ export interface SuperBuildOptions extends EsbuildBuildOptions {
 	debuggingLogs?: boolean | LoggerFunction
 }
 
-export type SuperBuildExclusiveOptions = Omit<SuperBuildOptions, keyof EsbuildBuildOptions>
-
 /** super-build lets you overload esbuild to expand what you're capable of doing in the plugin-api.
  *
  * this class creates a mere wrapper over a base `esbuild` object (acquired from `import esbuild from "npm:esbuild"`).
  * this class itself does not do anything interesting aside from overloading the `esbuild.build` and `esbuild.buildSync` methods,
  * to pass a modified version of your `esbuild.BuildOptions` that alters the plugin api (which is performed by {@link SuperBuildContext}).
 */
-export class SuperBuild implements Esbuild {
+export class SuperBuild implements Omit<Esbuild, "build" | "buildSync"> {
 	declare public version: Esbuild["version"]
 	declare public analyzeMetafile: Esbuild["analyzeMetafile"]
 	declare public analyzeMetafileSync: Esbuild["analyzeMetafileSync"]
@@ -53,38 +56,25 @@ export class SuperBuild implements Esbuild {
 		object_assign(this, rest_props)
 	}
 
-	protected splitOptions(options: SuperBuildOptions): [
-		super_options: SuperBuildExclusiveOptions,
-		esbuild_options: EsbuildBuildOptions,
-	] {
-		const { debuggingLogs, ...esbuild_options } = options
-		const super_options: SuperBuildExclusiveOptions = {
-			debuggingLogs
-		}
-		return [super_options, esbuild_options]
-	}
-
-	protected createContext(options: SuperBuildOptions): [
-		ctx: SuperBuildContext,
-		esbuild_options: EsbuildBuildOptions,
-	] {
+	public async build<T extends SuperBuildOptions>(options: T): Promise<
+		EsbuildBuildResult<SameShape<
+			EsbuildBuildOptions,
+			Omit<T, keyof SuperBuildExclusiveOptions>
+		>>
+	> {
 		const
-			[super_options, esbuild_options] = this.splitOptions(options),
-			new_ctx = new SuperBuildContext(super_options)
-		return [new_ctx, esbuild_options]
+			new_ctx = new SuperBuildContext(options),
+			esbuild_options = new_ctx.processPlugins()
+		return this.#esbuild.build(esbuild_options)
 	}
 
-	public async build<T extends SuperBuildOptions>(options: T & {
-		[Key in Exclude<keyof T, keyof SuperBuildOptions>]: never
-	}): Promise<EsbuildBuildResult<T>> {
-		const [new_ctx, esbuild_options] = this.createContext(options)
-		return this.#esbuild.build(new_ctx.processPlugins(esbuild_options))
-	}
-
-	public buildSync<T extends SuperBuildOptions>(options: T & {
-		[Key in Exclude<keyof T, keyof SuperBuildOptions>]: never
-	}): EsbuildBuildResult<T> {
-		const [new_ctx, esbuild_options] = this.createContext(options)
-		return this.#esbuild.buildSync(new_ctx.processPlugins(esbuild_options))
+	public buildSync<T extends SuperBuildOptions>(options: T): EsbuildBuildResult<SameShape<
+		EsbuildBuildOptions,
+		Omit<T, keyof SuperBuildExclusiveOptions>
+	>> {
+		const
+			new_ctx = new SuperBuildContext(options),
+			esbuild_options = new_ctx.processPlugins()
+		return this.#esbuild.buildSync(esbuild_options)
 	}
 }
