@@ -44,9 +44,10 @@
   >
   > I also changed [`EsbuildNativeResolver.initOptions`](./src/plugins/native_replica.ts) to explicitly set `format: "esm"`,
   > because `EsbuildNativeResolver` _was_ the reason why I discovered this issue when invoking a sub-build.
-- [ ] add support for specifying generic `loader`s in `SuperBuildOptions`.
+- [x] add support for specifying generic `loader`s in `SuperBuildOptions`.
       currently, passing a generic loader to esbuild causes it to halt immediately.
       I'll need to identify non-supported loaders and pass them separately to the native loader plugin, but not `esbuild.build`.
+  > (2026-07-14) DONE: added this feature.
 
 ## (2026-07-12) pre-version `0.1.1` todo list
 

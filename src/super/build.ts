@@ -3,11 +3,12 @@
  * @module
 */
 
-import { type DEBUG, object_assign } from "../deps.ts"
+import { type AutoSuggestOrString, type DEBUG, object_assign } from "../deps.ts"
 import type {
 	Esbuild,
 	EsbuildBuildOptions,
 	EsbuildBuildResult,
+	EsbuildLoaderType,
 	SameShape,
 } from "../esbuild/strongtypes.ts"
 import type { LoggerFunction } from "../typedefs.ts"
@@ -27,6 +28,9 @@ export interface SuperBuildExclusiveOptions {
 	 * @defaultValue `false`
 	*/
 	debuggingLogs?: boolean | LoggerFunction
+
+	/** specify what loader (generic or built-in) to use for various file extensions. */
+	loader?: { [ext: string]: AutoSuggestOrString<EsbuildLoaderType> }
 }
 
 /** super-build lets you overload esbuild to expand what you're capable of doing in the plugin-api.

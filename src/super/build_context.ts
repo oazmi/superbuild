@@ -6,15 +6,16 @@
  * @module
 */
 
-import { type DEBUG, isArray, parseFilepathInfo } from "../deps.ts"
+import { type DEBUG, isArray, object_entries, parseFilepathInfo } from "../deps.ts"
 import { Metafile, type MetafileConfig } from "../esbuild/metafile.ts"
-import type { EsbuildBuildOptions, EsbuildBuildResult, EsbuildOnEndCallback } from "../esbuild/strongtypes.ts"
+import type { EsbuildBuildOptions, EsbuildBuildResult, EsbuildLoaderType, EsbuildOnEndCallback } from "../esbuild/strongtypes.ts"
+import { allEsbuildLoaders } from "../esbuild/typedefs.ts"
 import { logLogger, noopLogger } from "../funcdefs.ts"
 import { emissionsDriverPlugin } from "../plugins/emissions_driver.ts"
 import { LongBuildController, longBuildPlugin } from "../plugins/long_build.ts"
 import { nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import type { LoggerFunction, NamespacedPath } from "../typedefs.ts"
-import type { SuperBuildOptions } from "./build.ts"
+import type { SuperBuildExclusiveOptions, SuperBuildOptions } from "./build.ts"
 import { SuperPlugin } from "./plugin.ts"
 import type { SuperPluginBuild } from "./plugin_build.ts"
 import type { BundledInputFile, OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions, OnTransformResult } from "./typedefs.ts"
@@ -66,6 +67,11 @@ export class SuperBuildContext {
 	/** the controller used for commanding the state of the "long build" plugin. */
 	public longBuildController: LongBuildController
 
+	/** contains all of the generic loaders specified in the initial build options.
+	 * they don't get passed over to esbuild directly because it gets really mad about it.
+	*/
+	public genericLoader!: NonNullable<SuperBuildExclusiveOptions["loader"]>
+
 	/** indicates the original `write` option specified by the user when instantiating the build. */
 	public shouldWrite: boolean = true
 
@@ -87,6 +93,7 @@ export class SuperBuildContext {
 	protected processOptions(options: SuperBuildOptions): EsbuildBuildOptions {
 		const {
 			debuggingLogs = false,
+			loader = {},
 			write = true,
 			allowOverwrite = false,
 			...esbuild_options
@@ -98,8 +105,20 @@ export class SuperBuildContext {
 		this.shouldWrite = write
 		this.shouldOverwrite = allowOverwrite
 
+		const
+			esbuild_approved_loaders: Record<string, EsbuildLoaderType> = {},
+			superbuild_generic_loaders: Record<string, string> = {}
+		for (const [ext, loader_type] of object_entries(loader)) {
+			if (allEsbuildLoaders.includes(loader_type)) {
+				esbuild_approved_loaders[ext] = loader_type as EsbuildLoaderType
+			} else { superbuild_generic_loaders[ext] = loader_type }
+		}
+		this.genericLoader = superbuild_generic_loaders
+
 		return {
 			...esbuild_options,
+			// esbuild rejects execution if it finds any non-standard loader being user. hence is why we've split apart all generic loaders.
+			loader: esbuild_approved_loaders,
 			// we are forced to enable `metafile` and disable `write` because our emissions driver plugin depends on these crucial options.
 			// once the build has concluded, the emissions driver plugin will call the `endBuild`
 			// method to take care of emitting the files to the filesystem if `this.shouldWrite` is set to `true`.
@@ -126,7 +145,7 @@ export class SuperBuildContext {
 		options.plugins ??= []
 		// insert the "native loader" at the last, so that esbuild never gets to load natively
 		// (which would bypass our `onLoad` overload, making all `onTransform` hooks unreachable).
-		options.plugins.push(nativeReplicaPlugin())
+		options.plugins.push(nativeReplicaPlugin({ genericLoader: this.genericLoader }))
 		// insert the "emissions driver" as the second plugin,
 		// so that it can drive all `onEmit` and `onEnd` callback hooks after the build has concluded.
 		options.plugins.unshift(emissionsDriverPlugin({ ctx: this }))
