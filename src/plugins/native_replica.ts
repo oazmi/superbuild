@@ -8,12 +8,16 @@
  * @module
 */
 
-import { escapeLiteralStringForRegex, fileUrlToLocalPath, json_stringify, promiseOutside, resolveAsUrl } from "../deps.ts"
+import { type AutoSuggestOrString, escapeLiteralStringForRegex, fileUrlToLocalPath, json_stringify, promiseOutside, resolveAsUrl } from "../deps.ts"
 import { guessExtensionLoader_Factory } from "../esbuild/native.ts"
-import type { EsbuildBuildOptions, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, EsbuildResolveOptions, EsbuildResolveResult, OnLoadArgs, OnResolveArgs } from "../esbuild/strongtypes.ts"
+import type { EsbuildBuildOptions, EsbuildLoaderTypeOrEmpty, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, EsbuildResolveOptions, EsbuildResolveResult, OnLoadArgs, OnResolveArgs } from "../esbuild/strongtypes.ts"
+import type { SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
 import { INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
 
+
+/** configuration options for {@link nativeReplicaPluginSetup}. */
+export interface NativeReplicaPluginSetupConfig extends Pick<SuperBuildContext, "genericLoader"> { }
 
 /** this plugin replicates esbuild's native path resolution and loading behavior through the plugin api layer.
  *
@@ -29,11 +33,13 @@ import { INNER_PLUGIN_BUILD } from "../super/typedefs.ts"
  * >
  * > _Luke_: Even if you refuse to acknowledge me, I am ME! Master... no, Van! Prepare to DIE!
 */
-export const nativeReplicaPluginSetup = (): EsbuildPluginSetup => {
+export const nativeReplicaPluginSetup = (config: NativeReplicaPluginSetupConfig): EsbuildPluginSetup => {
 	return async (build: EsbuildPluginBuild | SuperPluginBuild) => {
 		const
+			sbuild = build as SuperPluginBuild, // just for type-casting.
 			user_ext_to_loader_map = build.initialOptions.loader ?? {},
-			guess_extension_loader = guessExtensionLoader_Factory(user_ext_to_loader_map),
+			superbuild_user_ext_to_loader_map = config.genericLoader,
+			guess_extension_loader = guessExtensionLoader_Factory<AutoSuggestOrString<EsbuildLoaderTypeOrEmpty>>({ ...user_ext_to_loader_map, ...superbuild_user_ext_to_loader_map }),
 			// if super-build is being used, we must extract the original hidden `esbuild` from it, otherwise the native-resolver won't work.
 			base_esbuild = INNER_PLUGIN_BUILD in build
 				? build[INNER_PLUGIN_BUILD].esbuild
@@ -47,7 +53,7 @@ export const nativeReplicaPluginSetup = (): EsbuildPluginSetup => {
 			return native_resolver.resolve(args.path, rest_args)
 		})
 
-		build.onLoad({ filter: /.*/, namespace: "file" }, async (args: OnLoadArgs) => {
+		sbuild.onLoad({ filter: /.*/, namespace: "file" }, async (args: OnLoadArgs) => {
 			const
 				path_url = resolveAsUrl(args.path),
 				with_attr = args.with,
@@ -69,10 +75,10 @@ export const nativeReplicaPluginSetup = (): EsbuildPluginSetup => {
 }
 
 /** {@inheritDoc nativeReplicaPluginSetup} */
-export const nativeReplicaPlugin = (): EsbuildPlugin => {
+export const nativeReplicaPlugin = (config: NativeReplicaPluginSetupConfig): EsbuildPlugin => {
 	return {
 		name: "oazmi-superbuild-native_loader-plugin",
-		setup: nativeReplicaPluginSetup(),
+		setup: nativeReplicaPluginSetup(config),
 	}
 }
 
@@ -133,7 +139,8 @@ export class EsbuildNativeResolver {
 			mainFields, nodePaths, packages, platform,
 			resolveExtensions, tsconfig, tsconfigRaw,
 			bundle: true, minify: false, write: false,
-			outdir: "./temp/", entryPoints: [entrypoint],
+			format: "esm", outdir: "./temp/",
+			entryPoints: [entrypoint],
 		}
 	}
 

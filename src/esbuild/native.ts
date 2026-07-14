@@ -86,12 +86,12 @@ import { defaultExtensionToLoaderMap } from "./typedefs.ts"
  * assertEquals(fn("./settings.txt.json.png", { type: "image" }), "copy")
  * ```
 */
-export const loaderFromFileExtension = (
-	ext_to_loader_map: Record<string, EsbuildLoaderTypeOrEmpty>,
-	with_attr_type_map: Record<string, EsbuildLoaderTypeOrEmpty>,
+export const loaderFromFileExtension = <L = EsbuildLoaderTypeOrEmpty>(
+	ext_to_loader_map: Record<string, L>,
+	with_attr_type_map: Record<string, L>,
 	file_path: string | URL,
 	with_attr?: OnLoadArgs["with"],
-): EsbuildLoaderTypeOrEmpty => {
+): L => {
 	// first, we check if any `withAttr.type` exists that matches with the provided `withAttr mapping`.
 	const with_attr_type = with_attr?.type
 	if (isString(with_attr_type) && (with_attr_type in with_attr_type_map)) {
@@ -121,21 +121,23 @@ export const loaderFromFileExtension = (
  * which guesses a file's loader based on its file-path and the import's `with` attributes,
  * behaving similar to how esbuild behaves natively.
 */
-export type GuessExtensionLoader = (file_path: string | URL, with_attr?: OnLoadArgs["with"]) => EsbuildLoaderTypeOrEmpty
+export type GuessExtensionLoader<L> = (file_path: string | URL, with_attr?: OnLoadArgs["with"]) => L
 
 /** returns a function that guesses the loader that esbuild would natively suggest for a given input file path.
  *
  * this factory function expects to be provided with the user's {@link EsbuildPluginBuild["initialOptions"]["loader"]} map.
 */
-export const guessExtensionLoader_Factory = (user_ext_to_loader_map: Record<string, EsbuildLoaderTypeOrEmpty>): GuessExtensionLoader => {
+export const guessExtensionLoader_Factory = <L extends (string | undefined) = EsbuildLoaderTypeOrEmpty>(
+	user_ext_to_loader_map: Record<string, L | EsbuildLoaderTypeOrEmpty>
+): GuessExtensionLoader<L | EsbuildLoaderTypeOrEmpty> => {
 	const
 		ext_to_loader_map = { ...defaultExtensionToLoaderMap, ...user_ext_to_loader_map },
-		with_attr_type_map: Record<string, EsbuildLoaderTypeOrEmpty> = {
+		with_attr_type_map: Record<string, L | EsbuildLoaderTypeOrEmpty> = {
 			"json": "json",
 			"bytes": "binary",
 			"text": "text",
 		}
-	return (file_path: string | URL, with_attr?: OnLoadArgs["with"]): EsbuildLoaderTypeOrEmpty => {
-		return loaderFromFileExtension(ext_to_loader_map, with_attr_type_map, file_path, with_attr)
+	return (file_path: string | URL, with_attr?: OnLoadArgs["with"]) => {
+		return loaderFromFileExtension<L | EsbuildLoaderTypeOrEmpty>(ext_to_loader_map, with_attr_type_map, file_path, with_attr)
 	}
 }

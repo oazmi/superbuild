@@ -71,7 +71,7 @@ const is_wrapped_resolve_call = (args: OnResolveArgs): args is (
 ) => { return isRecord(args.pluginData) ? (ORIGINAL_PLUGINDATA in args.pluginData) : false }
 
 /** this is the extension of `esbuild.PluginBuild` that introduces additional functionality to esbuild's plugin api. */
-export class SuperPluginBuild implements EsbuildPluginBuild {
+export class SuperPluginBuild implements Omit<EsbuildPluginBuild, "esbuild"> {
 	protected ctx: SuperBuildContext
 	protected basePluginBuild: EsbuildPluginBuild
 	protected readonly pluginName: string
@@ -86,7 +86,10 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 	*/
 	public readonly [INNER_PLUGIN_BUILD]: EsbuildPluginBuild
 
-	constructor(ctx: SuperBuildContext, base_plugin_build: EsbuildPluginBuild, plugin_name: string) {
+	constructor(ctx: SuperBuildContext, base_plugin_build: EsbuildPluginBuild | SuperPluginBuild, plugin_name: string) {
+		base_plugin_build = INNER_PLUGIN_BUILD in base_plugin_build
+			? base_plugin_build[INNER_PLUGIN_BUILD]
+			: base_plugin_build
 		this.ctx = ctx
 		this.basePluginBuild = base_plugin_build
 		this.pluginName = plugin_name
@@ -97,6 +100,11 @@ export class SuperPluginBuild implements EsbuildPluginBuild {
 		this.esbuild = new SuperBuild(base_plugin_build.esbuild)
 		this[INNER_PLUGIN_BUILD] = base_plugin_build
 	}
+
+	/** type cast this {@link SuperPluginBuild} as an esbuild-compatible {@link EsbuildPluginBuild}.
+	 * there's no logic that gets executed. this function merely performs a type casting for the sake of esbuild-compatibility.
+	*/
+	public castToEsbuildPluginBuild(): EsbuildPluginBuild { return this as any }
 
 	public resolve(path: string, options: EsbuildResolveOptions = {}): Promise<EsbuildResolveResult> {
 		// `SuperPluginBuild.resolve` calls should not influence the long-build plugin's `remainingFilesCounter` at all
