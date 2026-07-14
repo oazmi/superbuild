@@ -1094,6 +1094,40 @@ var format_resolved_resource_registry = (registry) => {
   return { result: registry_lowercase, warnings };
 };
 
+// src/esbuild/typedefs.ts
+var allEsbuildLoaders = [
+  "base64",
+  "binary",
+  "copy",
+  "css",
+  "dataurl",
+  "default",
+  "empty",
+  "file",
+  "js",
+  "json",
+  "jsx",
+  "local-css",
+  "text",
+  "ts",
+  "tsx"
+];
+var defaultExtensionToLoaderMap = {
+  "": void 0,
+  ".js": "js",
+  ".mjs": "js",
+  ".cjs": "js",
+  ".jsx": "jsx",
+  ".ts": "ts",
+  ".cts": "ts",
+  ".mts": "js",
+  ".tsx": "tsx",
+  ".css": "css",
+  ".module.css": "local-css",
+  ".json": "json",
+  ".txt": "text"
+};
+
 // src/super/typedefs.ts
 var INNER_PLUGIN_BUILD = Symbol();
 
@@ -1362,9 +1396,12 @@ var LongBuildController = class {
   steps = [];
   /** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
   log;
+  /** {@inheritDoc LongBuildControllerConfig.format} */
+  format;
   constructor(config) {
     const uuid = generateUuid(2);
     this.log = config?.debuggingLogs ?? noopLogger;
+    this.format = config?.format ?? "esm";
     this.uuid = uuid;
     this.baseFilename = `.(${uuid}).js`;
     this.depsFilename = `deps.(${uuid}).js`;
@@ -1425,7 +1462,24 @@ var LongBuildController = class {
    * I'm certainly not going to be using `eval` or the `Function` constructor, because they are often restricted in some js-environments.
   */
   async parseLongBuildFileContent(longbuild_file_contents) {
+    if (this.format !== "esm") {
+      longbuild_file_contents = `
+const fakeGlobalThis = { };
+fakeGlobalThis.${"iifeModules" /* IIFE_MODULES_VAR_NAME */} = [];
+// running the script in a separate scope to prevent cjs top-level var-declaration conflict its name with the exported "RESOURCE_VAR_NAME".
+(() => {
+	${longbuild_file_contents}
+})();
+
+await Promise.all(fakeGlobalThis.${"iifeModules" /* IIFE_MODULES_VAR_NAME */})
+export const ${"resourceImports" /* RESOURCE_VAR_NAME */} = fakeGlobalThis.${"resourceImports" /* RESOURCE_VAR_NAME */}`;
+    }
     const js_content_without_imports = longbuild_file_contents.replaceAll(import_statement_regex, "String.raw`$<importPath>`"), js_blob = new Blob([js_content_without_imports], { type: "text/javascript" }), js_blob_url = URL.createObjectURL(js_blob), { ["resourceImports" /* RESOURCE_VAR_NAME */]: resourceImports } = await import(js_blob_url);
+    if (!(resourceImports instanceof Map)) {
+      const error_message = `[LongBuildController.parseLongBuildFileContent]: expected the parsed "resourceImports" to be a "Map". but found it to be: "${resourceImports}".`;
+      this.log(error_message);
+      throw new Error(error_message);
+    }
     return resourceImports;
   }
 };
@@ -1466,7 +1520,7 @@ var LongBuildStep = class {
   */
   prepareLongBuildFileContent() {
     const all_imports_this_build = [...this.resourceImports];
-    const all_imports_js_str = all_imports_this_build.map(([importer_key, imports_arr]) => {
+    let all_imports_js_str = all_imports_this_build.map(([importer_key, imports_arr]) => {
       const imports_str_arr = imports_arr.map((import_entity) => {
         const { key, path, with: with_attr = {}, external = false } = import_entity, key_str = json_stringify(key), path_str = json_stringify(path), with_str = json_stringify(with_attr), external_str = json_stringify(external), import_statement = external ? path_str : `await import(${path_str})`;
         return `{ key: ${key_str}, path: ${import_statement}, with: ${with_str}, external: ${external_str} }`;
@@ -1476,15 +1530,22 @@ var LongBuildStep = class {
       return `resourceImports.set(${importer_key_str}, [
 	${imports_str}
 ])`;
-    });
-    const deps_filename = this.controller.depsFilename, next_filename = `${this.buildNumber + 1}${this.controller.baseFilename}`, recursion_import_statement = !array_isEmpty(all_imports_this_build) ? `import "${next_filename}" // recursion to the next long-build.` : "// no imports were pushed this build-number. hence, this is the final long-build file.";
+    }).join("\n");
+    const format = this.controller.format, deps_filename = this.controller.depsFilename, next_filename = `${this.buildNumber + 1}${this.controller.baseFilename}`, deps_import_statement = `import { ${"resourceImports" /* RESOURCE_VAR_NAME */}, console_log } from "${deps_filename}"`, recursion_import_statement = !array_isEmpty(all_imports_this_build) ? `import "${next_filename}" // recursion to the next long-build.` : "// no imports were pushed this build-number. hence, this is the final long-build file.";
+    const export_statement = this.buildNumber !== 0 ? "" : format === "esm" ? `export { ${"resourceImports" /* RESOURCE_VAR_NAME */} }` : `fakeGlobalThis.${"resourceImports" /* RESOURCE_VAR_NAME */} = ${"resourceImports" /* RESOURCE_VAR_NAME */}`;
+    if (format !== "esm") {
+      all_imports_js_str = `
+fakeGlobalThis.${"iifeModules" /* IIFE_MODULES_VAR_NAME */}.push((async () => {
+${all_imports_js_str}
+})())`;
+    }
     return `
-import { ${"resourceImports" /* RESOURCE_VAR_NAME */}, console_log } from "${deps_filename}"
-export { ${"resourceImports" /* RESOURCE_VAR_NAME */} } // export the "resourceImports" so that it can be imported by the parser.
+${deps_import_statement}
 ${recursion_import_statement}
 
 console_log("long build: ${this.buildNumber}")
 ${all_imports_js_str}
+${export_statement}
 		`.trim();
   }
 };
@@ -1547,23 +1608,6 @@ var longBuildPlugin = (config) => {
   };
 };
 
-// src/esbuild/typedefs.ts
-var defaultExtensionToLoaderMap = {
-  "": void 0,
-  ".js": "js",
-  ".mjs": "js",
-  ".cjs": "js",
-  ".jsx": "jsx",
-  ".ts": "ts",
-  ".cts": "ts",
-  ".mts": "js",
-  ".tsx": "tsx",
-  ".css": "css",
-  ".module.css": "local-css",
-  ".json": "json",
-  ".txt": "text"
-};
-
 // src/esbuild/native.ts
 var loaderFromFileExtension = (ext_to_loader_map, with_attr_type_map, file_path, with_attr) => {
   const with_attr_type = with_attr?.type;
@@ -1598,15 +1642,15 @@ var guessExtensionLoader_Factory = (user_ext_to_loader_map) => {
 };
 
 // src/plugins/native_replica.ts
-var nativeReplicaPluginSetup = () => {
+var nativeReplicaPluginSetup = (config) => {
   return async (build) => {
-    const user_ext_to_loader_map = build.initialOptions.loader ?? {}, guess_extension_loader = guessExtensionLoader_Factory(user_ext_to_loader_map), base_esbuild = INNER_PLUGIN_BUILD in build ? build[INNER_PLUGIN_BUILD].esbuild : build.esbuild, native_resolver = new EsbuildNativeResolver(base_esbuild, build.initialOptions);
+    const sbuild = build, user_ext_to_loader_map = build.initialOptions.loader ?? {}, superbuild_user_ext_to_loader_map = config.genericLoader, guess_extension_loader = guessExtensionLoader_Factory({ ...user_ext_to_loader_map, ...superbuild_user_ext_to_loader_map }), base_esbuild = INNER_PLUGIN_BUILD in build ? build[INNER_PLUGIN_BUILD].esbuild : build.esbuild, native_resolver = new EsbuildNativeResolver(base_esbuild, build.initialOptions);
     build.onEnd(() => native_resolver.stop());
     build.onResolve({ filter: /.*/ }, (args) => {
       const { path, ...rest_args } = args;
       return native_resolver.resolve(args.path, rest_args);
     });
-    build.onLoad({ filter: /.*/, namespace: "file" }, async (args) => {
+    sbuild.onLoad({ filter: /.*/, namespace: "file" }, async (args) => {
       const path_url = resolveAsUrl(args.path), with_attr = args.with, loader = guess_extension_loader(path_url, with_attr), resolveDir = fileUrlToLocalPath(new URL("./", path_url)), path = fileUrlToLocalPath(path_url);
       const response = await fetch(path_url, { method: "GET" });
       if (!response.ok) {
@@ -1619,10 +1663,10 @@ ${json_stringify(response.headers)}`;
     });
   };
 };
-var nativeReplicaPlugin = () => {
+var nativeReplicaPlugin = (config) => {
   return {
     name: "oazmi-superbuild-native_loader-plugin",
-    setup: nativeReplicaPluginSetup()
+    setup: nativeReplicaPluginSetup(config)
   };
 };
 var EsbuildNativeResolver = class {
@@ -1679,6 +1723,7 @@ var EsbuildNativeResolver = class {
       bundle: true,
       minify: false,
       write: false,
+      format: "esm",
       outdir: "./temp/",
       entryPoints: [entrypoint]
     };
@@ -1737,12 +1782,19 @@ var SuperPluginBuild = class {
   */
   [INNER_PLUGIN_BUILD];
   constructor(ctx, base_plugin_build, plugin_name) {
+    base_plugin_build = INNER_PLUGIN_BUILD in base_plugin_build ? base_plugin_build[INNER_PLUGIN_BUILD] : base_plugin_build;
     this.ctx = ctx;
     this.basePluginBuild = base_plugin_build;
     this.pluginName = plugin_name;
     this.initialOptions = base_plugin_build.initialOptions;
     this.esbuild = new SuperBuild(base_plugin_build.esbuild);
     this[INNER_PLUGIN_BUILD] = base_plugin_build;
+  }
+  /** type cast this {@link SuperPluginBuild} as an esbuild-compatible {@link EsbuildPluginBuild}.
+   * there's no logic that gets executed. this function merely performs a type casting for the sake of esbuild-compatibility.
+  */
+  castToEsbuildPluginBuild() {
+    return this;
   }
   resolve(path, options = {}) {
     return this.basePluginBuild.resolve(path, wrap_resolve_call_options(options));
@@ -1861,13 +1913,17 @@ var SuperPlugin = class {
     this.name = base_plugin.name;
     const self = this;
     this.setup = (build) => {
-      return self.#basePlugin.setup(new SuperPluginBuild(self.#ctx, build, self.name));
+      return self.#basePlugin.setup(
+        new SuperPluginBuild(self.#ctx, build, self.name).castToEsbuildPluginBuild()
+      );
     };
   }
 };
 
 // src/super/build_context.ts
 var SuperBuildContext = class {
+  /** a backup of the options assigned to this build-context. */
+  esbuildOptions;
   /** contains a list of transformation handlers that will be used for matching contents returned by the plugins' `onLoad` hooks,
    * in order to transfer them to the registered {@link SuperPluginBuild.onTransform} hooks.
   */
@@ -1889,16 +1945,55 @@ var SuperBuildContext = class {
   resolvedResourceRegistry = /* @__PURE__ */ new Map();
   /** the controller used for commanding the state of the "long build" plugin. */
   longBuildController;
+  /** contains all of the generic loaders specified in the initial build options.
+   * they don't get passed over to esbuild directly because it gets really mad about it.
+  */
+  genericLoader;
   /** indicates the original `write` option specified by the user when instantiating the build. */
   shouldWrite = true;
   /** indicates if the original `allowOverwrite` option was enabled when the build was started. */
   shouldOverwrite = false;
   /** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
   log;
-  constructor(super_options) {
-    const { debuggingLogs = false } = super_options, log = debuggingLogs === false ? noopLogger : debuggingLogs === true ? logLogger : debuggingLogs;
-    this.log = log;
-    this.longBuildController = new LongBuildController({ debuggingLogs: log });
+  constructor(options) {
+    this.esbuildOptions = this.processOptions(options);
+    const format = this.esbuildOptions.format;
+    this.longBuildController = new LongBuildController({
+      debuggingLogs: this.log,
+      format: format ? format : "iife"
+      // assigning esbuild's default `format` when this option is not provided.
+    });
+  }
+  processOptions(options) {
+    const {
+      debuggingLogs = false,
+      loader = {},
+      write = true,
+      allowOverwrite = false,
+      ...esbuild_options
+    } = options;
+    this.log = debuggingLogs === false ? noopLogger : debuggingLogs === true ? logLogger : debuggingLogs;
+    this.shouldWrite = write;
+    this.shouldOverwrite = allowOverwrite;
+    const esbuild_approved_loaders = {}, superbuild_generic_loaders = {};
+    for (const [ext, loader_type] of object_entries(loader)) {
+      if (allEsbuildLoaders.includes(loader_type)) {
+        esbuild_approved_loaders[ext] = loader_type;
+      } else {
+        superbuild_generic_loaders[ext] = loader_type;
+      }
+    }
+    this.genericLoader = superbuild_generic_loaders;
+    return {
+      ...esbuild_options,
+      // esbuild rejects execution if it finds any non-standard loader being user. hence is why we've split apart all generic loaders.
+      loader: esbuild_approved_loaders,
+      // we are forced to enable `metafile` and disable `write` because our emissions driver plugin depends on these crucial options.
+      // once the build has concluded, the emissions driver plugin will call the `endBuild`
+      // method to take care of emitting the files to the filesystem if `this.shouldWrite` is set to `true`.
+      metafile: true,
+      write: false
+    };
   }
   /** this method wraps a {@link SuperPlugin} on top of each of the user's base plugin,
    * in addition to injecting two essential plugins at their correct position to make the new plugin apis work.
@@ -1913,9 +2008,10 @@ var SuperBuildContext = class {
    *   once this plugin has determined that all files in the current scope have been processed, it gathers all `imports` from the {@link OnTransformResult}s,
    *   and compiles/bundles them in a new recursive scope (hence the name "long-build").
   */
-  processPlugins(options) {
+  processPlugins() {
+    const options = this.esbuildOptions;
     options.plugins ??= [];
-    options.plugins.push(nativeReplicaPlugin());
+    options.plugins.push(nativeReplicaPlugin({ genericLoader: this.genericLoader }));
     options.plugins.unshift(emissionsDriverPlugin({ ctx: this }));
     const controller = this.longBuildController;
     options.plugins.unshift(longBuildPlugin({ controller }));
@@ -1926,10 +2022,6 @@ var SuperBuildContext = class {
     } else {
       entryPoints[long_build_filename] = parseFilepathInfo(long_build_filename).basename;
     }
-    this.shouldWrite = options.write ?? true;
-    this.shouldOverwrite = options.allowOverwrite ?? false;
-    options.metafile = true;
-    options.write = false;
     return options;
   }
   /** creates the the metafile object from esbuild's {@link EsbuildBuildResult},
@@ -1968,24 +2060,13 @@ var SuperBuild = class {
     const { build, buildSync, ...rest_props } = base_esbuild;
     object_assign(this, rest_props);
   }
-  splitOptions(options) {
-    const { debuggingLogs, ...esbuild_options } = options;
-    const super_options = {
-      debuggingLogs
-    };
-    return [super_options, esbuild_options];
-  }
-  createContext(options) {
-    const [super_options, esbuild_options] = this.splitOptions(options), new_ctx = new SuperBuildContext(super_options);
-    return [new_ctx, esbuild_options];
-  }
   async build(options) {
-    const [new_ctx, esbuild_options] = this.createContext(options);
-    return this.#esbuild.build(new_ctx.processPlugins(esbuild_options));
+    const new_ctx = new SuperBuildContext(options), esbuild_options = new_ctx.processPlugins();
+    return this.#esbuild.build(esbuild_options);
   }
   buildSync(options) {
-    const [new_ctx, esbuild_options] = this.createContext(options);
-    return this.#esbuild.buildSync(new_ctx.processPlugins(esbuild_options));
+    const new_ctx = new SuperBuildContext(options), esbuild_options = new_ctx.processPlugins();
+    return this.#esbuild.buildSync(esbuild_options);
   }
 };
 export {

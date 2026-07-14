@@ -44,6 +44,9 @@ export class SuperPluginBuild {
     */
     [INNER_PLUGIN_BUILD];
     constructor(ctx, base_plugin_build, plugin_name) {
+        base_plugin_build = INNER_PLUGIN_BUILD in base_plugin_build
+            ? base_plugin_build[INNER_PLUGIN_BUILD]
+            : base_plugin_build;
         this.ctx = ctx;
         this.basePluginBuild = base_plugin_build;
         this.pluginName = plugin_name;
@@ -54,6 +57,10 @@ export class SuperPluginBuild {
         this.esbuild = new SuperBuild(base_plugin_build.esbuild);
         this[INNER_PLUGIN_BUILD] = base_plugin_build;
     }
+    /** type cast this {@link SuperPluginBuild} as an esbuild-compatible {@link EsbuildPluginBuild}.
+     * there's no logic that gets executed. this function merely performs a type casting for the sake of esbuild-compatibility.
+    */
+    castToEsbuildPluginBuild() { return this; }
     resolve(path, options = {}) {
         // `SuperPluginBuild.resolve` calls should not influence the long-build plugin's `remainingFilesCounter` at all
         // (nor should its result get cached by `LongBuildController.cacheResolvedResult(...)`).

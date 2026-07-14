@@ -6,7 +6,7 @@
  *
  * @module
 */
-import type { EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginSetup, OnResolveResult } from "../esbuild/strongtypes.js";
+import type { EsbuildBuildOptions, EsbuildPartialMessage, EsbuildPlugin, EsbuildPluginSetup, OnResolveResult } from "../esbuild/strongtypes.js";
 import type { ImportEntity } from "../super/typedefs.js";
 import type { LoggerFunction } from "../typedefs.js";
 export interface LongBuildControllerConfig {
@@ -15,6 +15,18 @@ export interface LongBuildControllerConfig {
      * @defaultValue {@link noopLogger}
     */
     debuggingLogs?: LoggerFunction;
+    /** specify what build format is being used by your esbuild's build process.
+     * this is important to specify correctly,
+     * as we will need to manipulate the input and output contents of the long-build file(s) for the following reasons:
+     * - `iife` does not support top-level awaits, hence this mode requires us to wrap the logic inside an async function.
+     *   furthermore, `iife` results in no variable exports;
+     *   hence the bundled output will need to be changed so that it exports the `resourceImports` variable as an es6 module.
+     * - `cjs` does permit top-level awaits, but does not permit es6 exports. hence the need for additional manipulation of the output.
+     * - `esm` faces none of these issues, and it is the base format which we maipulate for the other scenarios.
+     *
+     * @defaultValue `"esm"`
+    */
+    format?: EsbuildBuildOptions["format"];
 }
 /** the controller used for commanding the state of the "long build" plugin. */
 export declare class LongBuildController {
@@ -65,6 +77,8 @@ export declare class LongBuildController {
     steps: Array<LongBuildStep>;
     /** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
     log: LoggerFunction;
+    /** {@inheritDoc LongBuildControllerConfig.format} */
+    format: LongBuildControllerConfig["format"];
     constructor(config?: LongBuildControllerConfig);
     incrementBuild(): EsbuildPartialMessage[];
     incrementFilesCounter(pathname?: string): void;

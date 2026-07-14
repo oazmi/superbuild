@@ -8,6 +8,10 @@
  * @module
 */
 import type { EsbuildBuildOptions, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, EsbuildResolveOptions, EsbuildResolveResult } from "../esbuild/strongtypes.js";
+import type { SuperBuildContext } from "../super/build_context.js";
+/** configuration options for {@link nativeReplicaPluginSetup}. */
+export interface NativeReplicaPluginSetupConfig extends Pick<SuperBuildContext, "genericLoader"> {
+}
 /** this plugin replicates esbuild's native path resolution and loading behavior through the plugin api layer.
  *
  * > [!note]
@@ -22,9 +26,9 @@ import type { EsbuildBuildOptions, EsbuildPlugin, EsbuildPluginBuild, EsbuildPlu
  * >
  * > _Luke_: Even if you refuse to acknowledge me, I am ME! Master... no, Van! Prepare to DIE!
 */
-export declare const nativeReplicaPluginSetup: () => EsbuildPluginSetup;
+export declare const nativeReplicaPluginSetup: (config: NativeReplicaPluginSetupConfig) => EsbuildPluginSetup;
 /** {@inheritDoc nativeReplicaPluginSetup} */
-export declare const nativeReplicaPlugin: () => EsbuildPlugin;
+export declare const nativeReplicaPlugin: (config: NativeReplicaPluginSetupConfig) => EsbuildPlugin;
 /** this class provides {@link resolve} method that is capable of resolving paths using esbuild's node-resolution scanner.
  *
  * it works by invoking esbuild's `PluginBuild.resolve` function whenever the {@link resolve} method is called,

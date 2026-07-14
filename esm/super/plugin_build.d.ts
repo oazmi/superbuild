@@ -10,7 +10,7 @@ import type { SuperBuildContext } from "./build_context.js";
 import type { OnEmitCallback, OnEmitOptions, OnLoadCallback, OnLoadOptions, OnTransformCallback, OnTransformOptions } from "./typedefs.js";
 import { INNER_PLUGIN_BUILD } from "./typedefs.js";
 /** this is the extension of `esbuild.PluginBuild` that introduces additional functionality to esbuild's plugin api. */
-export declare class SuperPluginBuild implements EsbuildPluginBuild {
+export declare class SuperPluginBuild implements Omit<EsbuildPluginBuild, "esbuild"> {
     protected ctx: SuperBuildContext;
     protected basePluginBuild: EsbuildPluginBuild;
     protected readonly pluginName: string;
@@ -23,7 +23,11 @@ export declare class SuperPluginBuild implements EsbuildPluginBuild {
      * such as in the case of the {@link nativeReplicaPlugin}, and the underlying {@link EsbuildNativeResolver} that it uses.
     */
     readonly [INNER_PLUGIN_BUILD]: EsbuildPluginBuild;
-    constructor(ctx: SuperBuildContext, base_plugin_build: EsbuildPluginBuild, plugin_name: string);
+    constructor(ctx: SuperBuildContext, base_plugin_build: EsbuildPluginBuild | SuperPluginBuild, plugin_name: string);
+    /** type cast this {@link SuperPluginBuild} as an esbuild-compatible {@link EsbuildPluginBuild}.
+     * there's no logic that gets executed. this function merely performs a type casting for the sake of esbuild-compatibility.
+    */
+    castToEsbuildPluginBuild(): EsbuildPluginBuild;
     resolve(path: string, options?: EsbuildResolveOptions): Promise<EsbuildResolveResult>;
     onStart(callback: EsbuildOnStartCallback): void;
     onEnd(callback: EsbuildOnEndCallback): void;

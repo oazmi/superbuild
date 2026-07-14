@@ -35,8 +35,10 @@ export class SuperPlugin implements EsbuildPlugin {
 		// esbuild strips away the setup function from its host object, effectively removing the `this` context.
 		// thus, we define the setup function as a closure rather than a method.
 		const self = this
-		this.setup = (build: EsbuildPluginBuild): MaybePromise<void> => {
-			return self.#basePlugin.setup(new SuperPluginBuild(self.#ctx, build, self.name))
+		this.setup = (build: EsbuildPluginBuild | SuperPluginBuild): MaybePromise<void> => {
+			return self.#basePlugin.setup(
+				new SuperPluginBuild(self.#ctx, build, self.name).castToEsbuildPluginBuild()
+			)
 		}
 	}
 }

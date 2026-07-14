@@ -24,9 +24,10 @@ import { INNER_PLUGIN_BUILD } from "../super/typedefs.js";
  * >
  * > _Luke_: Even if you refuse to acknowledge me, I am ME! Master... no, Van! Prepare to DIE!
 */
-export const nativeReplicaPluginSetup = () => {
+export const nativeReplicaPluginSetup = (config) => {
     return async (build) => {
-        const user_ext_to_loader_map = build.initialOptions.loader ?? {}, guess_extension_loader = guessExtensionLoader_Factory(user_ext_to_loader_map), 
+        const sbuild = build, // just for type-casting.
+        user_ext_to_loader_map = build.initialOptions.loader ?? {}, superbuild_user_ext_to_loader_map = config.genericLoader, guess_extension_loader = guessExtensionLoader_Factory({ ...user_ext_to_loader_map, ...superbuild_user_ext_to_loader_map }), 
         // if super-build is being used, we must extract the original hidden `esbuild` from it, otherwise the native-resolver won't work.
         base_esbuild = INNER_PLUGIN_BUILD in build
             ? build[INNER_PLUGIN_BUILD].esbuild
@@ -36,7 +37,7 @@ export const nativeReplicaPluginSetup = () => {
             const { path, ...rest_args } = args;
             return native_resolver.resolve(args.path, rest_args);
         });
-        build.onLoad({ filter: /.*/, namespace: "file" }, async (args) => {
+        sbuild.onLoad({ filter: /.*/, namespace: "file" }, async (args) => {
             const path_url = resolveAsUrl(args.path), with_attr = args.with, loader = guess_extension_loader(path_url, with_attr), resolveDir = fileUrlToLocalPath(new URL("./", path_url)), path = fileUrlToLocalPath(path_url);
             const response = await fetch(path_url, { method: "GET" });
             if (!response.ok) {
@@ -51,10 +52,10 @@ export const nativeReplicaPluginSetup = () => {
     };
 };
 /** {@inheritDoc nativeReplicaPluginSetup} */
-export const nativeReplicaPlugin = () => {
+export const nativeReplicaPlugin = (config) => {
     return {
         name: "oazmi-superbuild-native_loader-plugin",
-        setup: nativeReplicaPluginSetup(),
+        setup: nativeReplicaPluginSetup(config),
     };
 };
 /** this class provides {@link resolve} method that is capable of resolving paths using esbuild's node-resolution scanner.
@@ -95,7 +96,8 @@ export class EsbuildNativeResolver {
             mainFields, nodePaths, packages, platform,
             resolveExtensions, tsconfig, tsconfigRaw,
             bundle: true, minify: false, write: false,
-            outdir: "./temp/", entryPoints: [entrypoint],
+            format: "esm", outdir: "./temp/",
+            entryPoints: [entrypoint],
         };
     }
     initPlugin() {

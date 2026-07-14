@@ -81,15 +81,15 @@ import type { EsbuildLoaderTypeOrEmpty, OnLoadArgs } from "./strongtypes.js";
  * assertEquals(fn("./settings.txt.json.png", { type: "image" }), "copy")
  * ```
 */
-export declare const loaderFromFileExtension: (ext_to_loader_map: Record<string, EsbuildLoaderTypeOrEmpty>, with_attr_type_map: Record<string, EsbuildLoaderTypeOrEmpty>, file_path: string | URL, with_attr?: OnLoadArgs["with"]) => EsbuildLoaderTypeOrEmpty;
+export declare const loaderFromFileExtension: <L = EsbuildLoaderTypeOrEmpty>(ext_to_loader_map: Record<string, L>, with_attr_type_map: Record<string, L>, file_path: string | URL, with_attr?: OnLoadArgs["with"]) => L;
 /** the return type of {@link guessExtensionLoader_Factory},
  * which guesses a file's loader based on its file-path and the import's `with` attributes,
  * behaving similar to how esbuild behaves natively.
 */
-export type GuessExtensionLoader = (file_path: string | URL, with_attr?: OnLoadArgs["with"]) => EsbuildLoaderTypeOrEmpty;
+export type GuessExtensionLoader<L> = (file_path: string | URL, with_attr?: OnLoadArgs["with"]) => L;
 /** returns a function that guesses the loader that esbuild would natively suggest for a given input file path.
  *
  * this factory function expects to be provided with the user's {@link EsbuildPluginBuild["initialOptions"]["loader"]} map.
 */
-export declare const guessExtensionLoader_Factory: (user_ext_to_loader_map: Record<string, EsbuildLoaderTypeOrEmpty>) => GuessExtensionLoader;
+export declare const guessExtensionLoader_Factory: <L extends (string | undefined) = EsbuildLoaderTypeOrEmpty>(user_ext_to_loader_map: Record<string, L | EsbuildLoaderTypeOrEmpty>) => GuessExtensionLoader<L | EsbuildLoaderTypeOrEmpty>;
 //# sourceMappingURL=native.d.ts.map

@@ -9,7 +9,7 @@ import { Metafile, type MetafileConfig } from "../esbuild/metafile.js";
 import type { EsbuildBuildOptions, EsbuildBuildResult, EsbuildOnEndCallback } from "../esbuild/strongtypes.js";
 import { LongBuildController } from "../plugins/long_build.js";
 import type { LoggerFunction, NamespacedPath } from "../typedefs.js";
-import type { SuperBuildExclusiveOptions } from "./build.js";
+import type { SuperBuildExclusiveOptions, SuperBuildOptions } from "./build.js";
 import type { BundledInputFile, OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions } from "./typedefs.js";
 export interface OnTransformHandler extends OnTransformOptions {
     pluginName: string;
@@ -25,6 +25,8 @@ export interface OnEndHandler {
 }
 /** a centralized context is created for each individual {@link SuperBuild.build} call. */
 export declare class SuperBuildContext {
+    /** a backup of the options assigned to this build-context. */
+    protected esbuildOptions: EsbuildBuildOptions;
     /** contains a list of transformation handlers that will be used for matching contents returned by the plugins' `onLoad` hooks,
      * in order to transfer them to the registered {@link SuperPluginBuild.onTransform} hooks.
     */
@@ -46,13 +48,18 @@ export declare class SuperBuildContext {
     resolvedResourceRegistry: Map<NamespacedPath, BundledInputFile>;
     /** the controller used for commanding the state of the "long build" plugin. */
     longBuildController: LongBuildController;
+    /** contains all of the generic loaders specified in the initial build options.
+     * they don't get passed over to esbuild directly because it gets really mad about it.
+    */
+    genericLoader: NonNullable<SuperBuildExclusiveOptions["loader"]>;
     /** indicates the original `write` option specified by the user when instantiating the build. */
     shouldWrite: boolean;
     /** indicates if the original `allowOverwrite` option was enabled when the build was started. */
     shouldOverwrite: boolean;
     /** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
     log: LoggerFunction;
-    constructor(super_options: SuperBuildExclusiveOptions);
+    constructor(options: SuperBuildOptions);
+    protected processOptions(options: SuperBuildOptions): EsbuildBuildOptions;
     /** this method wraps a {@link SuperPlugin} on top of each of the user's base plugin,
      * in addition to injecting two essential plugins at their correct position to make the new plugin apis work.
      *
@@ -66,7 +73,7 @@ export declare class SuperBuildContext {
      *   once this plugin has determined that all files in the current scope have been processed, it gathers all `imports` from the {@link OnTransformResult}s,
      *   and compiles/bundles them in a new recursive scope (hence the name "long-build").
     */
-    processPlugins(options: EsbuildBuildOptions): EsbuildBuildOptions;
+    processPlugins(): EsbuildBuildOptions;
     /** creates the the metafile object from esbuild's {@link EsbuildBuildResult},
      * and registers all output files onto it for the {@link emissionsDriverPlugin} to initiate the next step (`onEmit` stage).
     */

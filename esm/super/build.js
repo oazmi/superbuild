@@ -17,23 +17,12 @@ export class SuperBuild {
         const { build, buildSync, ...rest_props } = base_esbuild;
         object_assign(this, rest_props);
     }
-    splitOptions(options) {
-        const { debuggingLogs, ...esbuild_options } = options;
-        const super_options = {
-            debuggingLogs
-        };
-        return [super_options, esbuild_options];
-    }
-    createContext(options) {
-        const [super_options, esbuild_options] = this.splitOptions(options), new_ctx = new SuperBuildContext(super_options);
-        return [new_ctx, esbuild_options];
-    }
     async build(options) {
-        const [new_ctx, esbuild_options] = this.createContext(options);
-        return this.#esbuild.build(new_ctx.processPlugins(esbuild_options));
+        const new_ctx = new SuperBuildContext(options), esbuild_options = new_ctx.processPlugins();
+        return this.#esbuild.build(esbuild_options);
     }
     buildSync(options) {
-        const [new_ctx, esbuild_options] = this.createContext(options);
-        return this.#esbuild.buildSync(new_ctx.processPlugins(esbuild_options));
+        const new_ctx = new SuperBuildContext(options), esbuild_options = new_ctx.processPlugins();
+        return this.#esbuild.buildSync(esbuild_options);
     }
 }

@@ -25,7 +25,7 @@ export class SuperPlugin {
         // thus, we define the setup function as a closure rather than a method.
         const self = this;
         this.setup = (build) => {
-            return self.#basePlugin.setup(new SuperPluginBuild(self.#ctx, build, self.name));
+            return self.#basePlugin.setup(new SuperPluginBuild(self.#ctx, build, self.name).castToEsbuildPluginBuild());
         };
     }
 }

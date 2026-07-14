@@ -5,8 +5,9 @@
  *
  * @module
 */
-import { isArray, parseFilepathInfo } from "../deps.js";
+import { isArray, object_entries, parseFilepathInfo } from "../deps.js";
 import { Metafile } from "../esbuild/metafile.js";
+import { allEsbuildLoaders } from "../esbuild/typedefs.js";
 import { logLogger, noopLogger } from "../funcdefs.js";
 import { emissionsDriverPlugin } from "../plugins/emissions_driver.js";
 import { LongBuildController, longBuildPlugin } from "../plugins/long_build.js";
@@ -14,6 +15,8 @@ import { nativeReplicaPlugin } from "../plugins/native_replica.js";
 import { SuperPlugin } from "./plugin.js";
 /** a centralized context is created for each individual {@link SuperBuild.build} call. */
 export class SuperBuildContext {
+    /** a backup of the options assigned to this build-context. */
+    esbuildOptions;
     /** contains a list of transformation handlers that will be used for matching contents returned by the plugins' `onLoad` hooks,
      * in order to transfer them to the registered {@link SuperPluginBuild.onTransform} hooks.
     */
@@ -35,18 +38,51 @@ export class SuperBuildContext {
     resolvedResourceRegistry = new Map();
     /** the controller used for commanding the state of the "long build" plugin. */
     longBuildController;
+    /** contains all of the generic loaders specified in the initial build options.
+     * they don't get passed over to esbuild directly because it gets really mad about it.
+    */
+    genericLoader;
     /** indicates the original `write` option specified by the user when instantiating the build. */
     shouldWrite = true;
     /** indicates if the original `allowOverwrite` option was enabled when the build was started. */
     shouldOverwrite = false;
     /** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
     log;
-    constructor(super_options) {
-        const { debuggingLogs = false } = super_options, log = debuggingLogs === false ? noopLogger
+    constructor(options) {
+        this.esbuildOptions = this.processOptions(options);
+        const format = this.esbuildOptions.format;
+        this.longBuildController = new LongBuildController({
+            debuggingLogs: this.log,
+            format: format ? format : "iife" // assigning esbuild's default `format` when this option is not provided.
+        });
+    }
+    processOptions(options) {
+        const { debuggingLogs = false, loader = {}, write = true, allowOverwrite = false, ...esbuild_options } = options;
+        this.log = debuggingLogs === false ? noopLogger
             : debuggingLogs === true ? logLogger
                 : debuggingLogs;
-        this.log = log;
-        this.longBuildController = new LongBuildController({ debuggingLogs: log });
+        this.shouldWrite = write;
+        this.shouldOverwrite = allowOverwrite;
+        const esbuild_approved_loaders = {}, superbuild_generic_loaders = {};
+        for (const [ext, loader_type] of object_entries(loader)) {
+            if (allEsbuildLoaders.includes(loader_type)) {
+                esbuild_approved_loaders[ext] = loader_type;
+            }
+            else {
+                superbuild_generic_loaders[ext] = loader_type;
+            }
+        }
+        this.genericLoader = superbuild_generic_loaders;
+        return {
+            ...esbuild_options,
+            // esbuild rejects execution if it finds any non-standard loader being user. hence is why we've split apart all generic loaders.
+            loader: esbuild_approved_loaders,
+            // we are forced to enable `metafile` and disable `write` because our emissions driver plugin depends on these crucial options.
+            // once the build has concluded, the emissions driver plugin will call the `endBuild`
+            // method to take care of emitting the files to the filesystem if `this.shouldWrite` is set to `true`.
+            metafile: true,
+            write: false,
+        };
     }
     /** this method wraps a {@link SuperPlugin} on top of each of the user's base plugin,
      * in addition to injecting two essential plugins at their correct position to make the new plugin apis work.
@@ -61,11 +97,12 @@ export class SuperBuildContext {
      *   once this plugin has determined that all files in the current scope have been processed, it gathers all `imports` from the {@link OnTransformResult}s,
      *   and compiles/bundles them in a new recursive scope (hence the name "long-build").
     */
-    processPlugins(options) {
+    processPlugins() {
+        const options = this.esbuildOptions;
         options.plugins ??= [];
         // insert the "native loader" at the last, so that esbuild never gets to load natively
         // (which would bypass our `onLoad` overload, making all `onTransform` hooks unreachable).
-        options.plugins.push(nativeReplicaPlugin());
+        options.plugins.push(nativeReplicaPlugin({ genericLoader: this.genericLoader }));
         // insert the "emissions driver" as the second plugin,
         // so that it can drive all `onEmit` and `onEnd` callback hooks after the build has concluded.
         options.plugins.unshift(emissionsDriverPlugin({ ctx: this }));
@@ -82,13 +119,6 @@ export class SuperBuildContext {
             // stripping away the ".js" extension from the filename.
             entryPoints[long_build_filename] = parseFilepathInfo(long_build_filename).basename;
         }
-        this.shouldWrite = options.write ?? true;
-        this.shouldOverwrite = options.allowOverwrite ?? false;
-        // we are forced to enable `metafile` and disable `write` because our emissions driver plugin depends on these crucial options.
-        // once the build has concluded, the emissions driver plugin will call the `endBuild`
-        // method to take care of emitting the files to the filesystem if `this.shouldWrite` is set to `true`.
-        options.metafile = true;
-        options.write = false;
         return options;
     }
     /** creates the the metafile object from esbuild's {@link EsbuildBuildResult},

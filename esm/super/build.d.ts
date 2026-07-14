@@ -2,10 +2,12 @@
  *
  * @module
 */
-import type { Esbuild, EsbuildBuildOptions, EsbuildBuildResult } from "../esbuild/strongtypes.js";
+import { type AutoSuggestOrString } from "../deps.js";
+import type { Esbuild, EsbuildBuildOptions, EsbuildBuildResult, EsbuildLoaderType, SameShape } from "../esbuild/strongtypes.js";
 import type { LoggerFunction } from "../typedefs.js";
-import { SuperBuildContext } from "./build_context.js";
-export interface SuperBuildOptions extends EsbuildBuildOptions {
+export interface SuperBuildOptions extends Omit<EsbuildBuildOptions, keyof SuperBuildExclusiveOptions>, SuperBuildExclusiveOptions {
+}
+export interface SuperBuildExclusiveOptions {
     /** enable internal logging of super-build for debugging, when {@link DEBUG.LOG} is enabled.
      *
      * when set to `true`, the logs will show up in your console via `console.log()`.
@@ -14,15 +16,18 @@ export interface SuperBuildOptions extends EsbuildBuildOptions {
      * @defaultValue `false`
     */
     debuggingLogs?: boolean | LoggerFunction;
+    /** specify what loader (generic or built-in) to use for various file extensions. */
+    loader?: {
+        [ext: string]: AutoSuggestOrString<EsbuildLoaderType>;
+    };
 }
-export type SuperBuildExclusiveOptions = Omit<SuperBuildOptions, keyof EsbuildBuildOptions>;
 /** super-build lets you overload esbuild to expand what you're capable of doing in the plugin-api.
  *
  * this class creates a mere wrapper over a base `esbuild` object (acquired from `import esbuild from "npm:esbuild"`).
  * this class itself does not do anything interesting aside from overloading the `esbuild.build` and `esbuild.buildSync` methods,
  * to pass a modified version of your `esbuild.BuildOptions` that alters the plugin api (which is performed by {@link SuperBuildContext}).
 */
-export declare class SuperBuild implements Esbuild {
+export declare class SuperBuild implements Omit<Esbuild, "build" | "buildSync"> {
     #private;
     version: Esbuild["version"];
     analyzeMetafile: Esbuild["analyzeMetafile"];
@@ -35,19 +40,7 @@ export declare class SuperBuild implements Esbuild {
     transformSync: Esbuild["transformSync"];
     stop: Esbuild["stop"];
     constructor(base_esbuild: Esbuild);
-    protected splitOptions(options: SuperBuildOptions): [
-        super_options: SuperBuildExclusiveOptions,
-        esbuild_options: EsbuildBuildOptions
-    ];
-    protected createContext(options: SuperBuildOptions): [
-        ctx: SuperBuildContext,
-        esbuild_options: EsbuildBuildOptions
-    ];
-    build<T extends SuperBuildOptions>(options: T & {
-        [Key in Exclude<keyof T, keyof SuperBuildOptions>]: never;
-    }): Promise<EsbuildBuildResult<T>>;
-    buildSync<T extends SuperBuildOptions>(options: T & {
-        [Key in Exclude<keyof T, keyof SuperBuildOptions>]: never;
-    }): EsbuildBuildResult<T>;
+    build<T extends SuperBuildOptions>(options: T): Promise<EsbuildBuildResult<SameShape<EsbuildBuildOptions, Omit<T, keyof SuperBuildExclusiveOptions>>>>;
+    buildSync<T extends SuperBuildOptions>(options: T): EsbuildBuildResult<SameShape<EsbuildBuildOptions, Omit<T, keyof SuperBuildExclusiveOptions>>>;
 }
 //# sourceMappingURL=build.d.ts.map

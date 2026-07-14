@@ -22,6 +22,8 @@ var LONGBUILD;
     LONGBUILD[LONGBUILD["ONLOAD_MIN_DELAY"] = 500] = "ONLOAD_MIN_DELAY";
     /** the name of the resource-imports storage variable used across the "long build step" js files. */
     LONGBUILD["RESOURCE_VAR_NAME"] = "resourceImports";
+    /** the name of the iife modules collector variable. it gets used when esbuild's format is set to `"iife"` or `"cjs"` instead of `"esm"`. */
+    LONGBUILD["IIFE_MODULES_VAR_NAME"] = "iifeModules";
     /** this will be common dependency file of each "long build step" js file, so that they all share the same `resourceImports` storage variable.
      *
      * the name of this file will be `deps.(${uuid}).js`, defined in the {@link LongBuildController}.
@@ -78,9 +80,12 @@ export class LongBuildController {
     steps = [];
     /** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
     log;
+    /** {@inheritDoc LongBuildControllerConfig.format} */
+    format;
     constructor(config) {
         const uuid = generateUuid(2);
         this.log = config?.debuggingLogs ?? noopLogger;
+        this.format = config?.format ?? "esm";
         this.uuid = uuid;
         this.baseFilename = `.(${uuid}).js`;
         this.depsFilename = `deps.(${uuid}).js`;
@@ -151,12 +156,34 @@ export class LongBuildController {
      * I'm certainly not going to be using `eval` or the `Function` constructor, because they are often restricted in some js-environments.
     */
     async parseLongBuildFileContent(longbuild_file_contents) {
+        // first, we prepend and append content that is necessary for iife or cjs based bundled output to turn into and esm script.
+        if (this.format !== "esm") {
+            longbuild_file_contents = `
+const fakeGlobalThis = { };
+fakeGlobalThis.${LONGBUILD.IIFE_MODULES_VAR_NAME} = [];
+// running the script in a separate scope to prevent cjs top-level var-declaration conflict its name with the exported "RESOURCE_VAR_NAME".
+(() => {
+	${longbuild_file_contents}
+})();
+
+await Promise.all(fakeGlobalThis.${LONGBUILD.IIFE_MODULES_VAR_NAME})
+export const ${LONGBUILD.RESOURCE_VAR_NAME} = fakeGlobalThis.${LONGBUILD.RESOURCE_VAR_NAME}`;
+        }
         const 
-        // we first strip away all dynamic import statements and replace them with just the import string.
+        // now, we first strip away all dynamic import statements and replace them with just the import string.
         // for instance: `await import("./hello-world.xyz")` will transform to just "String.raw`./hello-world.xyz`".
         js_content_without_imports = longbuild_file_contents.replaceAll(import_statement_regex, "String.raw`$<importPath>`"), js_blob = new Blob([js_content_without_imports], { type: "text/javascript" }), js_blob_url = URL.createObjectURL(js_blob), 
         // now we dynamically load our bundled long-build js file that contains import statements, and then return them.
         { [LONGBUILD.RESOURCE_VAR_NAME]: resourceImports } = await import(js_blob_url);
+        // NOTE: it used to be possible for `resourceImports` to be `undefined` in case esbuild was bundling using the `"iife"` format, instead of "esm".
+        // I was initially preventing a fatal shutdown of this script under this situation by using null coalescing with an empty array.
+        // however, I hope that parsing issues no longer occur now that I've added support for all three bundling formats (esm, iife, cjs).
+        // hence is why I've removed the null coalescing with an explicit fata error, so that it becomes clear when an unexpected parsing error has occurred.
+        if (!(resourceImports instanceof Map)) {
+            const error_message = `[LongBuildController.parseLongBuildFileContent]: expected the parsed "resourceImports" to be a "Map". but found it to be: "${resourceImports}".`;
+            this.log(error_message);
+            throw new Error(error_message);
+        }
         return resourceImports;
     }
 }
@@ -197,7 +224,7 @@ export class LongBuildStep {
     */
     prepareLongBuildFileContent() {
         const all_imports_this_build = [...this.resourceImports];
-        const all_imports_js_str = all_imports_this_build.map(([importer_key, imports_arr]) => {
+        let all_imports_js_str = all_imports_this_build.map(([importer_key, imports_arr]) => {
             const imports_str_arr = imports_arr.map((import_entity) => {
                 const { key, path, with: with_attr = {}, external = false } = import_entity, key_str = json_stringify(key), path_str = json_stringify(path), with_str = json_stringify(with_attr), external_str = json_stringify(external), 
                 // to prevent resources marked as `external` from being discovered by esbuild, we don't wrap them around a dynamic `import(...)`.
@@ -208,17 +235,28 @@ export class LongBuildStep {
             const imports_str = imports_str_arr.join(",\n\t");
             const importer_key_str = json_stringify(importer_key);
             return `resourceImports.set(${importer_key_str}, [\n\t${imports_str}\n])`;
-        });
-        const deps_filename = this.controller.depsFilename, next_filename = `${this.buildNumber + 1}${this.controller.baseFilename}`, recursion_import_statement = !array_isEmpty(all_imports_this_build)
+        }).join("\n");
+        const format = this.controller.format, deps_filename = this.controller.depsFilename, next_filename = `${this.buildNumber + 1}${this.controller.baseFilename}`, deps_import_statement = `import { ${LONGBUILD.RESOURCE_VAR_NAME}, console_log } from "${deps_filename}"`, recursion_import_statement = !array_isEmpty(all_imports_this_build)
             ? `import "${next_filename}" // recursion to the next long-build.`
             : "// no imports were pushed this build-number. hence, this is the final long-build file.";
+        // exporting the "resourceImports" variable on the very first build step, so that it can be imported by the parser.
+        const export_statement = this.buildNumber !== 0 ? ""
+            : (format === "esm") ? `export { ${LONGBUILD.RESOURCE_VAR_NAME} }`
+                : `fakeGlobalThis.${LONGBUILD.RESOURCE_VAR_NAME} = ${LONGBUILD.RESOURCE_VAR_NAME}`;
+        // for none-esm formats, we must wrap the awaited dynamic imports inside an iife async function, with its promise pushed to a known global variable.
+        if (format !== "esm") {
+            all_imports_js_str = `
+fakeGlobalThis.${LONGBUILD.IIFE_MODULES_VAR_NAME}.push((async () => {
+${all_imports_js_str}
+})())`;
+        }
         return `
-import { ${LONGBUILD.RESOURCE_VAR_NAME}, console_log } from "${deps_filename}"
-export { ${LONGBUILD.RESOURCE_VAR_NAME} } // export the "resourceImports" so that it can be imported by the parser.
+${deps_import_statement}
 ${recursion_import_statement}
 
 console_log("long build: ${this.buildNumber}")
 ${all_imports_js_str}
+${export_statement}
 		`.trim();
     }
 }
