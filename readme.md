@@ -12,8 +12,8 @@ A wrapper on top of esbuild to provide you with extended esbuild Plugin-API capa
 import esbuild from "npm:esbuild"
 import { SuperBuild } from "jsr:@oazmi/superbuild" // or use "npm:@oazmi/superbuild".
 
-const sbuild = new SuperBuild(esbuild)
-const result = await sbuild.build({
+const spbuild = new SuperBuild(esbuild)
+const result = await spbuild.build({
 	entryPoints: ["./mod.ts"],
 	// ... other build options.
 	plugins: [{
@@ -46,6 +46,25 @@ const my_plugin_setup: SuperPluginSetup = (build: SuperPluginBuild) => {
 	})
 	// ...
 }
+```
+
+You also don't have to go through an `onLoad` for your custom-loader resources if you're just loading it through the filesystem;
+All you have to do is declare it in the `loader` option of the bundle build:
+
+```ts
+import esbuild from "npm:esbuild"
+import { SuperBuild } from "jsr:@oazmi/superbuild"
+
+const spbuild = new SuperBuild(esbuild)
+const result = await spbuild.build({
+	entryPoints: ["./mod.ts", "./meow.html", "./neko/nyaa.html", "./styles.scss"],
+	loader: {
+		".html": "html",
+		".scss": "sass-loader",
+		".css": "lightningcss",
+	},
+	// ... other build options.
+})
 ```
 
 ### _onTransform_

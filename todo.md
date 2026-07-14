@@ -16,6 +16,10 @@
       and add an optional `BuildOptions.fetchBase` option for declaring the base path of absolute file paths that start with `/`,
       which will default to the user's local fs, but can be made to have an alternate meaning (such as a url).
 - [ ] add proper tests under [`/test/`](./test/), or at least include proper examples under [`/examples/`](./examples/).
+- [ ] css imports performed inside long-build js (originating from something that requests the bundling of css during the transformation stage)
+      causes the creation of `${LongBuildController.uuid}.css` files in the output.
+      I need to investigate them, remove them from the output files,
+      and see how the import requester can be given back these bundled css files that have adopted the name of long-build's uuid.
 
 ## pre-version `0.1.4` todo list
 
@@ -28,7 +32,7 @@
 - [ ] currently, if a resource does not resolve (i.e. fails to resolve), then the build process halts indefinitely,
       due to the `remainingFilesCounter` of the long-build controller never falling to zero.
 
-## pre-version `0.1.2` todo list
+## (2026-07-14) pre-version `0.1.2` todo list
 
 - [x] fix an issue with [`LongBuildController.parseLongBuildFileContent`](./src/plugins/long_build.ts),
       where if esbuild is set to using `"iife"` or `"cjs"` for its `format`,
