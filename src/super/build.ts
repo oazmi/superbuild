@@ -13,6 +13,7 @@ import type {
 } from "../esbuild/strongtypes.ts"
 import type { LoggerFunction } from "../typedefs.ts"
 import { SuperBuildContext } from "./build_context.ts"
+import type { SuperPluginType } from "./plugin.ts"
 
 
 export interface SuperBuildOptions extends
@@ -31,6 +32,9 @@ export interface SuperBuildExclusiveOptions {
 
 	/** specify what loader (generic or built-in) to use for various file extensions. */
 	loader?: { [ext: string]: AutoSuggestOrString<EsbuildLoaderType> }
+
+	/** the superbuild-compatible plugins. */
+	plugins?: Array<SuperPluginType>
 }
 
 /** super-build lets you overload esbuild to expand what you're capable of doing in the plugin-api.
@@ -68,7 +72,7 @@ export class SuperBuild implements Omit<Esbuild, "build" | "buildSync"> {
 	> {
 		const
 			new_ctx = new SuperBuildContext(options),
-			esbuild_options = new_ctx.processPlugins()
+			esbuild_options = new_ctx.getBuildOptions()
 		return this.#esbuild.build(esbuild_options)
 	}
 
@@ -78,7 +82,7 @@ export class SuperBuild implements Omit<Esbuild, "build" | "buildSync"> {
 	>> {
 		const
 			new_ctx = new SuperBuildContext(options),
-			esbuild_options = new_ctx.processPlugins()
+			esbuild_options = new_ctx.getBuildOptions()
 		return this.#esbuild.buildSync(esbuild_options)
 	}
 }

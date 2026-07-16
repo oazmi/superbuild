@@ -176,6 +176,15 @@ export type OnTransformCallback = (args: OnTransformArgs) => MaybePromiseOrNull<
 export interface ImportEntity<K = any> {
 	/** include a unique key that you can use to trace back the imported entity,
 	 * because the `path` of the import in the bundled output will differ, whereas this key will remain the same.
+	 *
+	 * > [!caution]
+	 * > the key **must be** json serializable!
+	 * > because we internally perform a dynamic import of the javascript file that bundles all external resources;
+	 * > and for us to generate this javascript file, we must be able to represent it as a string.
+	 * >
+	 * > if you wish to use arbitrary data (such as class instances) as the key,
+	 * > you will need to create a global reference hash-map to store the arbitrary data,
+	 * > and use its keys as the keys you would provide here.
 	*/
 	key: K
 
