@@ -5,7 +5,7 @@
  *
  * @module
 */
-import { isArray, object_entries, parseFilepathInfo } from "../deps.js";
+import { isArray, object_entries, object_fromEntries, parseFilepathInfo } from "../deps.js";
 import { Metafile } from "../esbuild/metafile.js";
 import { allEsbuildLoaders } from "../esbuild/typedefs.js";
 import { logLogger, noopLogger } from "../funcdefs.js";
@@ -49,32 +49,40 @@ export class SuperBuildContext {
     /** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
     log;
     constructor(options) {
-        this.esbuildOptions = this.processOptions(options);
-        const format = this.esbuildOptions.format;
+        options = this.initFields(options);
+        const format = options.format;
         this.longBuildController = new LongBuildController({
             debuggingLogs: this.log,
             format: format ? format : "iife" // assigning esbuild's default `format` when this option is not provided.
         });
+        this.esbuildOptions = this.processOptions(options);
     }
-    processOptions(options) {
+    getBuildOptions() {
+        return this.esbuildOptions;
+    }
+    initFields(options) {
         const { debuggingLogs = false, loader = {}, write = true, allowOverwrite = false, ...esbuild_options } = options;
         this.log = debuggingLogs === false ? noopLogger
             : debuggingLogs === true ? logLogger
                 : debuggingLogs;
         this.shouldWrite = write;
         this.shouldOverwrite = allowOverwrite;
-        const esbuild_approved_loaders = {}, superbuild_generic_loaders = {};
-        for (const [ext, loader_type] of object_entries(loader)) {
-            if (allEsbuildLoaders.includes(loader_type)) {
-                esbuild_approved_loaders[ext] = loader_type;
-            }
-            else {
-                superbuild_generic_loaders[ext] = loader_type;
-            }
-        }
-        this.genericLoader = superbuild_generic_loaders;
+        this.genericLoader = object_fromEntries(object_entries(loader).filter(([ext, loader_type]) => {
+            return !allEsbuildLoaders.includes(loader_type);
+        }));
+        return { loader, ...esbuild_options };
+    }
+    processOptions(options) {
+        const { debuggingLogs, loader = {}, entryPoints: original_entry_points = [], plugins: pseudo_super_plugins = [], ...esbuild_options } = options;
+        const esbuild_approved_loaders = object_fromEntries(object_entries(loader).filter(([ext, loader_type]) => {
+            return allEsbuildLoaders.includes(loader_type);
+        }));
+        const plugins = this.processPlugins(pseudo_super_plugins);
+        const entryPoints = this.processEntryPoints(original_entry_points);
         return {
             ...esbuild_options,
+            entryPoints,
+            plugins,
             // esbuild rejects execution if it finds any non-standard loader being user. hence is why we've split apart all generic loaders.
             loader: esbuild_approved_loaders,
             // we are forced to enable `metafile` and disable `write` because our emissions driver plugin depends on these crucial options.
@@ -97,29 +105,31 @@ export class SuperBuildContext {
      *   once this plugin has determined that all files in the current scope have been processed, it gathers all `imports` from the {@link OnTransformResult}s,
      *   and compiles/bundles them in a new recursive scope (hence the name "long-build").
     */
-    processPlugins() {
-        const options = this.esbuildOptions;
-        options.plugins ??= [];
+    processPlugins(pseudo_super_plugins) {
         // insert the "native loader" at the last, so that esbuild never gets to load natively
         // (which would bypass our `onLoad` overload, making all `onTransform` hooks unreachable).
-        options.plugins.push(nativeReplicaPlugin({ genericLoader: this.genericLoader }));
+        pseudo_super_plugins.push(nativeReplicaPlugin({ genericLoader: this.genericLoader }));
         // insert the "emissions driver" as the second plugin,
         // so that it can drive all `onEmit` and `onEnd` callback hooks after the build has concluded.
-        options.plugins.unshift(emissionsDriverPlugin({ ctx: this }));
+        pseudo_super_plugins.unshift(emissionsDriverPlugin({ ctx: this }));
         // insert a longbuild plugin at the very beginning so that it can intercept all incoming files.
         const controller = this.longBuildController;
-        options.plugins.unshift(longBuildPlugin({ controller }));
-        options.plugins = options.plugins.map((plugin) => (new SuperPlugin(this, plugin)));
-        // we also insert the unique long build entry point to the options.
-        const long_build_filename = controller.steps.at(-1).filename, entryPoints = (options.entryPoints ??= []);
-        if (isArray(entryPoints)) {
-            entryPoints.push(long_build_filename);
+        pseudo_super_plugins.unshift(longBuildPlugin({ controller }));
+        // TODO: is using `plugin as any` below really the best option? I can't think of any better way unfortunately.
+        const super_plugins = pseudo_super_plugins.map((plugin) => (new SuperPlugin(this, plugin)));
+        return super_plugins;
+    }
+    processEntryPoints(entry_points) {
+        // here, we insert the unique long-build js entry file as to the user's entry points.
+        const long_build_filename = this.longBuildController.steps.at(-1).filename;
+        if (isArray(entry_points)) {
+            return [...entry_points, long_build_filename];
         }
         else {
             // stripping away the ".js" extension from the filename.
-            entryPoints[long_build_filename] = parseFilepathInfo(long_build_filename).basename;
+            const output_filename = parseFilepathInfo(long_build_filename).basename;
+            return { ...entry_points, long_build_filename: output_filename };
         }
-        return options;
     }
     /** creates the the metafile object from esbuild's {@link EsbuildBuildResult},
      * and registers all output files onto it for the {@link emissionsDriverPlugin} to initiate the next step (`onEmit` stage).

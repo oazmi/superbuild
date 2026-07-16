@@ -18,11 +18,11 @@ export class SuperBuild {
         object_assign(this, rest_props);
     }
     async build(options) {
-        const new_ctx = new SuperBuildContext(options), esbuild_options = new_ctx.processPlugins();
+        const new_ctx = new SuperBuildContext(options), esbuild_options = new_ctx.getBuildOptions();
         return this.#esbuild.build(esbuild_options);
     }
     buildSync(options) {
-        const new_ctx = new SuperBuildContext(options), esbuild_options = new_ctx.processPlugins();
+        const new_ctx = new SuperBuildContext(options), esbuild_options = new_ctx.getBuildOptions();
         return this.#esbuild.buildSync(esbuild_options);
     }
 }

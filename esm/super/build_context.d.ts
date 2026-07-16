@@ -10,6 +10,7 @@ import type { EsbuildBuildOptions, EsbuildBuildResult, EsbuildOnEndCallback } fr
 import { LongBuildController } from "../plugins/long_build.js";
 import type { LoggerFunction, NamespacedPath } from "../typedefs.js";
 import type { SuperBuildExclusiveOptions, SuperBuildOptions } from "./build.js";
+import { SuperPlugin, type SuperPluginType } from "./plugin.js";
 import type { BundledInputFile, OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions } from "./typedefs.js";
 export interface OnTransformHandler extends OnTransformOptions {
     pluginName: string;
@@ -59,6 +60,8 @@ export declare class SuperBuildContext {
     /** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
     log: LoggerFunction;
     constructor(options: SuperBuildOptions);
+    getBuildOptions(): EsbuildBuildOptions;
+    protected initFields(options: SuperBuildOptions): SuperBuildOptions;
     protected processOptions(options: SuperBuildOptions): EsbuildBuildOptions;
     /** this method wraps a {@link SuperPlugin} on top of each of the user's base plugin,
      * in addition to injecting two essential plugins at their correct position to make the new plugin apis work.
@@ -73,7 +76,8 @@ export declare class SuperBuildContext {
      *   once this plugin has determined that all files in the current scope have been processed, it gathers all `imports` from the {@link OnTransformResult}s,
      *   and compiles/bundles them in a new recursive scope (hence the name "long-build").
     */
-    processPlugins(): EsbuildBuildOptions;
+    protected processPlugins(pseudo_super_plugins: SuperPluginType[]): SuperPlugin[];
+    protected processEntryPoints(entry_points: NonNullable<EsbuildBuildOptions["entryPoints"]>): NonNullable<EsbuildBuildOptions["entryPoints"]>;
     /** creates the the metafile object from esbuild's {@link EsbuildBuildResult},
      * and registers all output files onto it for the {@link emissionsDriverPlugin} to initiate the next step (`onEmit` stage).
     */

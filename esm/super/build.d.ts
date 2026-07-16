@@ -5,6 +5,7 @@
 import { type AutoSuggestOrString } from "../deps.js";
 import type { Esbuild, EsbuildBuildOptions, EsbuildBuildResult, EsbuildLoaderType, SameShape } from "../esbuild/strongtypes.js";
 import type { LoggerFunction } from "../typedefs.js";
+import type { SuperPluginType } from "./plugin.js";
 export interface SuperBuildOptions extends Omit<EsbuildBuildOptions, keyof SuperBuildExclusiveOptions>, SuperBuildExclusiveOptions {
 }
 export interface SuperBuildExclusiveOptions {
@@ -20,6 +21,8 @@ export interface SuperBuildExclusiveOptions {
     loader?: {
         [ext: string]: AutoSuggestOrString<EsbuildLoaderType>;
     };
+    /** the superbuild-compatible plugins. */
+    plugins?: Array<SuperPluginType>;
 }
 /** super-build lets you overload esbuild to expand what you're capable of doing in the plugin-api.
  *

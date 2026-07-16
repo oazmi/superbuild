@@ -6,7 +6,7 @@
  * @module
 */
 
-import { type DEBUG, isArray, object_entries, parseFilepathInfo } from "../deps.js"
+import { type DEBUG, isArray, object_entries, object_fromEntries, parseFilepathInfo } from "../deps.js"
 import { Metafile, type MetafileConfig } from "../esbuild/metafile.js"
 import type { EsbuildBuildOptions, EsbuildBuildResult, EsbuildLoaderType, EsbuildOnEndCallback } from "../esbuild/strongtypes.js"
 import { allEsbuildLoaders } from "../esbuild/typedefs.js"
@@ -16,7 +16,7 @@ import { LongBuildController, longBuildPlugin } from "../plugins/long_build.js"
 import { nativeReplicaPlugin } from "../plugins/native_replica.js"
 import type { LoggerFunction, NamespacedPath } from "../typedefs.js"
 import type { SuperBuildExclusiveOptions, SuperBuildOptions } from "./build.js"
-import { SuperPlugin } from "./plugin.js"
+import { SuperPlugin, type SuperPluginType } from "./plugin.js"
 import type { SuperPluginBuild } from "./plugin_build.js"
 import type { BundledInputFile, OnEmitCallback, OnEmitOptions, OnTransformCallback, OnTransformOptions, OnTransformResult } from "./typedefs.js"
 
@@ -82,15 +82,20 @@ export class SuperBuildContext {
 	public log!: LoggerFunction
 
 	constructor(options: SuperBuildOptions) {
-		this.esbuildOptions = this.processOptions(options)
-		const format = this.esbuildOptions.format
+		options = this.initFields(options)
+		const format = options.format
 		this.longBuildController = new LongBuildController({
 			debuggingLogs: this.log,
 			format: format ? format : "iife" // assigning esbuild's default `format` when this option is not provided.
 		})
+		this.esbuildOptions = this.processOptions(options)
 	}
 
-	protected processOptions(options: SuperBuildOptions): EsbuildBuildOptions {
+	public getBuildOptions(): EsbuildBuildOptions {
+		return this.esbuildOptions
+	}
+
+	protected initFields(options: SuperBuildOptions): SuperBuildOptions {
 		const {
 			debuggingLogs = false,
 			loader = {},
@@ -104,19 +109,33 @@ export class SuperBuildContext {
 				: debuggingLogs
 		this.shouldWrite = write
 		this.shouldOverwrite = allowOverwrite
+		this.genericLoader = object_fromEntries(object_entries(loader).filter(([ext, loader_type]) => {
+			return !allEsbuildLoaders.includes(loader_type)
+		}))
 
-		const
-			esbuild_approved_loaders: Record<string, EsbuildLoaderType> = {},
-			superbuild_generic_loaders: Record<string, string> = {}
-		for (const [ext, loader_type] of object_entries(loader)) {
-			if (allEsbuildLoaders.includes(loader_type)) {
-				esbuild_approved_loaders[ext] = loader_type as EsbuildLoaderType
-			} else { superbuild_generic_loaders[ext] = loader_type }
-		}
-		this.genericLoader = superbuild_generic_loaders
+		return { loader, ...esbuild_options }
+	}
+
+	protected processOptions(options: SuperBuildOptions): EsbuildBuildOptions {
+		const {
+			debuggingLogs,
+			loader = {},
+			entryPoints: original_entry_points = [],
+			plugins: pseudo_super_plugins = [],
+			...esbuild_options
+		} = options
+		const esbuild_approved_loaders: Record<string, EsbuildLoaderType> = object_fromEntries(
+			object_entries(loader).filter(([ext, loader_type]) => {
+				return allEsbuildLoaders.includes(loader_type)
+			}) as Array<[ext: string, loader_type: EsbuildLoaderType]>
+		)
+		const plugins = this.processPlugins(pseudo_super_plugins)
+		const entryPoints = this.processEntryPoints(original_entry_points)
 
 		return {
 			...esbuild_options,
+			entryPoints,
+			plugins,
 			// esbuild rejects execution if it finds any non-standard loader being user. hence is why we've split apart all generic loaders.
 			loader: esbuild_approved_loaders,
 			// we are forced to enable `metafile` and disable `write` because our emissions driver plugin depends on these crucial options.
@@ -140,30 +159,31 @@ export class SuperBuildContext {
 	 *   once this plugin has determined that all files in the current scope have been processed, it gathers all `imports` from the {@link OnTransformResult}s,
 	 *   and compiles/bundles them in a new recursive scope (hence the name "long-build").
 	*/
-	public processPlugins(): EsbuildBuildOptions {
-		const options = this.esbuildOptions
-		options.plugins ??= []
+	protected processPlugins(pseudo_super_plugins: SuperPluginType[]): SuperPlugin[] {
 		// insert the "native loader" at the last, so that esbuild never gets to load natively
 		// (which would bypass our `onLoad` overload, making all `onTransform` hooks unreachable).
-		options.plugins.push(nativeReplicaPlugin({ genericLoader: this.genericLoader }))
+		pseudo_super_plugins.push(nativeReplicaPlugin({ genericLoader: this.genericLoader }))
 		// insert the "emissions driver" as the second plugin,
 		// so that it can drive all `onEmit` and `onEnd` callback hooks after the build has concluded.
-		options.plugins.unshift(emissionsDriverPlugin({ ctx: this }))
+		pseudo_super_plugins.unshift(emissionsDriverPlugin({ ctx: this }))
 		// insert a longbuild plugin at the very beginning so that it can intercept all incoming files.
 		const controller = this.longBuildController
-		options.plugins.unshift(longBuildPlugin({ controller }))
-		options.plugins = options.plugins.map((plugin) => (new SuperPlugin(this, plugin)))
-		// we also insert the unique long build entry point to the options.
-		const
-			long_build_filename = controller.steps.at(-1)!.filename,
-			entryPoints = (options.entryPoints ??= [])
-		if (isArray(entryPoints)) {
-			entryPoints.push(long_build_filename)
+		pseudo_super_plugins.unshift(longBuildPlugin({ controller }))
+		// TODO: is using `plugin as any` below really the best option? I can't think of any better way unfortunately.
+		const super_plugins = pseudo_super_plugins.map((plugin) => (new SuperPlugin(this, plugin as any)))
+		return super_plugins
+	}
+
+	protected processEntryPoints(entry_points: NonNullable<EsbuildBuildOptions["entryPoints"]>): NonNullable<EsbuildBuildOptions["entryPoints"]> {
+		// here, we insert the unique long-build js entry file as to the user's entry points.
+		const long_build_filename = this.longBuildController.steps.at(-1)!.filename
+		if (isArray(entry_points)) {
+			return [...entry_points, long_build_filename]
 		} else {
 			// stripping away the ".js" extension from the filename.
-			entryPoints[long_build_filename] = parseFilepathInfo(long_build_filename).basename
+			const output_filename = parseFilepathInfo(long_build_filename).basename
+			return { ...entry_points, long_build_filename: output_filename }
 		}
-		return options
 	}
 
 	/** creates the the metafile object from esbuild's {@link EsbuildBuildResult},
