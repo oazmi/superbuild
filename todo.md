@@ -21,16 +21,21 @@
       I need to investigate them, remove them from the output files,
       and see how the import requester can be given back these bundled css files that have adopted the name of long-build's uuid.
 
-## pre-version `0.1.4` todo list
+## pre-version `0.1.5` todo list
 
 - [ ] in [`/readme.md`](./readme.md) include information on how to initialize a sub-build,
       and on how to access the underlying true `build.esbuild` object (rather than the overloaded version).
 
-## pre-version `0.1.3` todo list
+## pre-version `0.1.4` todo list
 
 - [ ] generalize/weaken the typing so that the library becomes compatible with any version of esbuild.
 - [ ] currently, if a resource does not resolve (i.e. fails to resolve), then the build process halts indefinitely,
       due to the `remainingFilesCounter` of the long-build controller never falling to zero.
+
+## (2026-07-16) pre-version `0.1.3` todo list
+
+- [x] improve the type compatibility of regular esbuild plugins, superbuild plugins, and hybrid plugins with the
+      [`SuperBuild.build`](./src/super/build.ts) method.
 
 ## (2026-07-14) pre-version `0.1.2` todo list
 

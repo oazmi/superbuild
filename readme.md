@@ -72,6 +72,9 @@ const result = await spbuild.build({
 The newly added `build.onTransform` function lets you capture [_loaded_](#onload) content,
 transform them in any arbitrary way, and then specify additional arbitrary imports that need to be bundled.
 
+> [!caution]
+> your import entity's `key` **must be** json serializable!
+
 example:
 
 ```ts
