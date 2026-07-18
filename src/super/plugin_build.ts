@@ -5,7 +5,7 @@
  * @module
 */
 
-import { array_isEmpty, isNull, isRecord, pathToPosixPath } from "../deps.ts"
+import { array_isEmpty, isNull, isRecord, isRelativePath, joinPaths, parseFilepathInfo, pathToPosixPath, Require } from "../deps.ts"
 import type {
 	EsbuildBuildOptions,
 	EsbuildLoaderType,
@@ -13,6 +13,7 @@ import type {
 	OnLoadCallback as EsbuildOnLoadCallback,
 	OnLoadResult as EsbuildOnLoadResult,
 	EsbuildOnStartCallback,
+	EsbuildPartialMessage,
 	EsbuildPluginBuild,
 	EsbuildResolveOptions,
 	EsbuildResolveResult,
@@ -22,13 +23,16 @@ import type {
 } from "../esbuild/strongtypes.ts"
 import { concatArrays } from "../funcdefs.ts"
 import type { emissionsDriverPlugin } from "../plugins/emissions_driver.ts"
+import { importsRerouterPlugin } from "../plugins/imports_rerouter.ts"
 import type { EsbuildNativeResolver, nativeReplicaPlugin } from "../plugins/native_replica.ts"
 import { SuperBuild } from "./build.ts"
 import type { SuperBuildContext } from "./build_context.ts"
 import type {
 	BundledInputFile,
+	OnEmitArgs,
 	OnEmitCallback,
 	OnEmitOptions,
+	OnEmitResult,
 	OnLoadArgs,
 	OnLoadCallback,
 	OnLoadOptions,
@@ -268,5 +272,71 @@ export class SuperPluginBuild implements Omit<EsbuildPluginBuild, "esbuild"> {
 	public onEmit(options: OnEmitOptions, callback: OnEmitCallback): void {
 		const { filter, inputs } = options
 		this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, inputs, callback })
+	}
+
+	/** rename an emitted js or css file, and have any relative (statically analyzable) import paths within the contents of the file update accordingly.
+	 *
+	 * @param on_emit_args the same `OnEmitArgs` that you receive in your {@link onEmit} hook's callback function.
+	 * @param updated_output_path the new path where your emitted output file is to be migrated to.
+	 *   you should ideally provide an absolute path here; but if you don't,
+	 *   it will be assumed that the path is relative to `on_emit_args.outputPath`
+	 * @param loader specify the kind of content that's in your emitted file.
+	 *   only `js` and `css` files are currently supported,
+	 *   as only these two can have their import statements natively parse by esbuild
+	 *   (which is what we use for modifying the relative import paths).
+	 * @returns the new updated contents of the migrated file, any errors, and the migrated path
+	 *   (which is the same as the input {@link updated_output_path}, but resolved to become an absolute path),
+	 * 	 using the same interface of an {@link onEmit} hook's callback function's return value.
+	 *
+	 * > [!note]
+	 * > remember, the returned value is merely the transformed input content.
+	 * > it does **not** implicitly apply the new contents onto the underlying virtual output file.
+	 * > for that, you will have to use the returned value of this method as the returned value for your resource's
+	 * > {@link onEmit} hook's callback function.
+	*/
+	public async renameEmittedOutput(
+		on_emit_args: Require<Partial<OnEmitArgs>, "contents" | "outputPath">,
+		updated_output_path: string,
+		loader: EsbuildLoaderType & ("js" | "css"),
+	): Promise<Require<OnEmitResult, "contents" | "path" | "errors">> {
+		const
+			{ outputPath, contents } = on_emit_args,
+			output_dir = pathToPosixPath(parseFilepathInfo(outputPath).dirpath)
+		// we must resolve `updated_output_path` as an absolute path before passing it on to the sub-build.
+		updated_output_path = isRelativePath(updated_output_path)
+			? joinPaths(outputPath, updated_output_path)
+			: updated_output_path
+
+		const build_result = await this.basePluginBuild.esbuild.build({
+			stdin: {
+				contents: contents,
+				loader: loader,
+				resolveDir: output_dir,
+				sourcefile: outputPath,
+			},
+			format: "esm",
+			write: false,
+			bundle: true,
+			minify: false,
+			treeShaking: false,
+			plugins: [importsRerouterPlugin({ updatedOutputPath: updated_output_path })]
+		})
+
+		const
+			errors: EsbuildPartialMessage[] = [...build_result.errors],
+			output_files = build_result.outputFiles,
+			migrated_contents = (output_files.at(0)?.contents ?? new Uint8Array()) as Uint8Array<ArrayBuffer>
+		if (output_files.length !== 1) {
+			errors.push({
+				text: `[SuperBuildPlugin.renameEmittedOutput]: expected only a single file to be emitted when renaming to "${updated_output_path}".`,
+				location: { file: outputPath },
+			})
+		}
+
+		return {
+			path: updated_output_path,
+			contents: migrated_contents,
+			errors,
+		}
 	}
 }
