@@ -7,7 +7,7 @@ export { array_isEmpty, console_log, date_now, dom_clearTimeout, dom_setTimeout,
 export { bind_array_push } from "@oazmi/kitchensink/binder"
 export { ensureFile, getRuntimeCwd, identifyCurrentRuntime, statEntry, writeFile } from "@oazmi/kitchensink/crossenv"
 export { crc32 } from "@oazmi/kitchensink/cryptoman"
-export { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, fileUrlToLocalPath, getUriScheme, isAbsolutePath, parseFilepathInfo, pathToPosixPath, relativePath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman"
+export { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, fileUrlToLocalPath, getUriScheme, isAbsolutePath, joinPaths, parseFilepathInfo, pathToPosixPath, relativePath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 export { promiseOutside, promiseTimeout } from "@oazmi/kitchensink/promiseman"
 export { escapeLiteralStringForRegex } from "@oazmi/kitchensink/stringman"
 export { isArray, isFunction, isNull, isRecord, isString } from "@oazmi/kitchensink/struct"
@@ -36,10 +36,14 @@ const
 	string_starts_with = (str: string, starts_with: string): boolean => str.startsWith(starts_with),
 	string_ends_with = (str: string, ends_with: string): boolean => str.endsWith(ends_with)
 
-export const ensureRelativeDotSlash = (str: string): string => {
-	return (string_starts_with(str, dotslash) || string_starts_with(str, dotdotslash)) ? str
-		: string_starts_with(str, sep) ? "." + str
-			: dotslash + str
+export const isRelativePath = (path: string): boolean => {
+	return string_starts_with(path, dotslash) || string_starts_with(path, dotdotslash)
+}
+
+export const ensureRelativeDotSlash = (path: string): string => {
+	return isRelativePath(path) ? path
+		: string_starts_with(path, sep) ? "." + path
+			: dotslash + path
 }
 
 export const
