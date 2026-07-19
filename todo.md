@@ -21,16 +21,50 @@
       I need to investigate them, remove them from the output files,
       and see how the import requester can be given back these bundled css files that have adopted the name of long-build's uuid.
 
-## pre-version `0.1.5` todo list
+## pre-version `0.2.3` todo list
 
 - [ ] in [`/readme.md`](./readme.md) include information on how to initialize a sub-build,
       and on how to access the underlying true `build.esbuild` object (rather than the overloaded version).
 
-## pre-version `0.1.4` todo list
+## pre-version `0.2.2` todo list
 
 - [ ] generalize/weaken the typing so that the library becomes compatible with any version of esbuild.
 - [ ] currently, if a resource does not resolve (i.e. fails to resolve), then the build process halts indefinitely,
       due to the `remainingFilesCounter` of the long-build controller never falling to zero.
+
+## pre-version `0.2.2` todo list
+
+- [ ] make it so that any update to a js or css dependencies' output path (see the `0.2.0 todo list`)
+      will reflect into the dependent script's content, by utilizing a sub-build and declaring all imports as external,
+      and renaming all updated relative imports accordingly.
+
+## pre-version `0.2.1` todo list
+
+- [ ] introduce an `importedBy` filter to `OnEmitOptions`,
+      to make it possible to intercept certain resources that are dynamically imported _by_ the given set of emitted output files.
+      I think I'll want its interface to be `type ImportedBy = Omit<OnEmitOptions, "importedBy">`,
+      so that one can recursively select the filter that would apply to the resource that is importing the thing that we wish to intercept.
+      why do I want this? well, in my html plugin, passing the `OnEmitArgs` of inlined scripts/styles to the `replaceContent`
+      function is proving to be difficult in the html's `onEmit` stage,
+      which comes _after_ the inlined scripts/styles have been processed by the `onEmit` stage.
+      a forward lookahead mechanism would simplify my logic by a good amount.
+
+## (2026-07-18) pre-version `0.2.0` todo list
+
+- [x] the `SuperPluginBuild.renameEmittedOutput` method (or the `importsRerouterPlugin`)
+      should also handle updating any path changes in the imported entities themselves,
+      rather than just handling the migration of the input source file.
+  > (2026-07-18) DONE: renamed the `renameEmittedOutput` method to `rerouteImports`
+  > (since it handles more than just renaming the js/css source file),
+  > and also make the `importsRerouterPlugin` (utilized by `rerouteImports`) handle path changes in the imported entities themselves,
+  > in addition to respecting any imported entities that were declared as `external`.
+  > one drawback of this is we must now perform imported-entity matching with each incoming `onResolve` request inside the plugin.
+  > i.e. the plugin is no longer as stateless/independent as it previously was.
+- [x] add the ability to change the directory of an output javascript or css file,
+      **without** breaking the import paths inside of the rerouted file.
+  > (2026-07-17) DONE: added the `SuperPluginBuild.renameEmittedOutput` method,
+  > which utilizes the newly added [`importsRerouterPlugin`](./src/plugins/imports_rerouter.ts),
+  > to create a sub-build that parses the source file to re-route its relative import paths.
 
 ## (2026-07-16) pre-version `0.1.3` todo list
 

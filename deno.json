@@ -1,6 +1,6 @@
 {
 	"name": "@oazmi/superbuild",
-	"version": "0.1.3",
+	"version": "0.2.0",
 	"description": "A wrapper on top of esbuild to provide you with extended esbuild plugin-api capabilities (hence a super set of esbuild).",
 	"author": "Omar Azmi",
 	"license": "Apache-2.0",
@@ -28,6 +28,7 @@
 		"./plugins/long-build": "./src/plugins/long_build.ts",
 		"./plugins/native-replica": "./src/plugins/native_replica.ts",
 		"./plugins/emissions-driver": "./src/plugins/emissions_driver.ts",
+		"./plugins/imports-rerouter": "./src/plugins/imports_rerouter.ts",
 		"./funcdefs": "./src/funcdefs.ts",
 		"./typedefs": "./src/typedefs.ts"
 	},
