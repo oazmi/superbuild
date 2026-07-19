@@ -4,10 +4,11 @@
  *
  * @module
 */
-import type { EsbuildBuildOptions, EsbuildOnEndCallback, EsbuildOnStartCallback, EsbuildPluginBuild, EsbuildResolveOptions, EsbuildResolveResult, OnResolveCallback, OnResolveOptions } from "../esbuild/strongtypes.js";
+import { Require } from "../deps.js";
+import type { EsbuildBuildOptions, EsbuildLoaderType, EsbuildOnEndCallback, EsbuildOnStartCallback, EsbuildPluginBuild, EsbuildResolveOptions, EsbuildResolveResult, OnResolveCallback, OnResolveOptions } from "../esbuild/strongtypes.js";
 import { SuperBuild } from "./build.js";
 import type { SuperBuildContext } from "./build_context.js";
-import type { OnEmitCallback, OnEmitOptions, OnLoadCallback, OnLoadOptions, OnTransformCallback, OnTransformOptions } from "./typedefs.js";
+import type { OnEmitArgs, OnEmitCallback, OnEmitOptions, OnEmitResult, OnLoadCallback, OnLoadOptions, OnTransformCallback, OnTransformOptions } from "./typedefs.js";
 import { INNER_PLUGIN_BUILD } from "./typedefs.js";
 /** this is the extension of `esbuild.PluginBuild` that introduces additional functionality to esbuild's plugin api. */
 export declare class SuperPluginBuild implements Omit<EsbuildPluginBuild, "esbuild"> {
@@ -38,5 +39,30 @@ export declare class SuperPluginBuild implements Omit<EsbuildPluginBuild, "esbui
     onTransform(options: OnTransformOptions, callback: OnTransformCallback): void;
     /** TODO: add documentation and usage examples. */
     onEmit(options: OnEmitOptions, callback: OnEmitCallback): void;
+    /** re-route the statically analyzable relative imports of an emitted js or css file's contents.
+     * this process is akin to either moving/renaming the base emitted file to a different directory,
+     * and/or individually renaming the import paths of a select number of dependency files.
+     *
+     * @param on_emit_args the same `OnEmitArgs` that you receive in your {@link onEmit} hook's callback function.
+     *   this will describe your emitted output file's contents and its original output path,
+     *   in addition to all of the imports that it performs (and any imported entities that may need to have their paths updated).
+     * @param loader specify the kind of content that's in your emitted file.
+     *   only `js` and `css` files are currently supported,
+     *   as only these two can have their import statements natively parse by esbuild
+     *   (which is what we use for modifying the relative import paths).
+     * @param updated_output_path the new path where your emitted output file is to be migrated to.
+     *   you should ideally provide an absolute path here; but if you don't,
+     *   it will be assumed that the path is relative to `on_emit_args.outputPath`.
+     * @returns the new updated contents of the migrated file, any errors, and the migrated path
+     *   (which is the same as the input {@link updated_output_path}, but resolved to become an absolute path),
+     * 	 using the same interface of an {@link onEmit} hook's callback function's return value.
+     *
+     * > [!note]
+     * > remember, the returned value is merely the transformed input content.
+     * > it does **not** implicitly apply the new contents onto the underlying virtual output file.
+     * > for that, you will have to use the returned value of this method as the returned value for your resource's
+     * > {@link onEmit} hook's callback function.
+    */
+    rerouteImports(on_emit_args: Require<Partial<OnEmitArgs>, "contents" | "outputPath">, loader: EsbuildLoaderType & ("js" | "css"), updated_output_path?: string): Promise<Pick<OnEmitResult, "contents" | "path" | "warnings" | "errors">>;
 }
 //# sourceMappingURL=plugin_build.d.ts.map

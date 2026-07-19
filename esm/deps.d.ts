@@ -4,7 +4,7 @@ export { array_isEmpty, console_log, date_now, dom_clearTimeout, dom_setTimeout,
 export { bind_array_push } from "./deps/jsr.io/@oazmi/kitchensink/0.10.1/src/binder.js";
 export { ensureFile, getRuntimeCwd, identifyCurrentRuntime, statEntry, writeFile } from "./deps/jsr.io/@oazmi/kitchensink/0.10.1/src/crossenv.js";
 export { crc32 } from "./deps/jsr.io/@oazmi/kitchensink/0.10.1/src/cryptoman.js";
-export { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, fileUrlToLocalPath, getUriScheme, isAbsolutePath, parseFilepathInfo, pathToPosixPath, relativePath, resolveAsUrl, resolvePathFactory } from "./deps/jsr.io/@oazmi/kitchensink/0.10.1/src/pathman.js";
+export { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, fileUrlToLocalPath, getUriScheme, isAbsolutePath, joinPaths, parseFilepathInfo, pathToPosixPath, relativePath, resolveAsUrl, resolvePathFactory } from "./deps/jsr.io/@oazmi/kitchensink/0.10.1/src/pathman.js";
 export { promiseOutside, promiseTimeout } from "./deps/jsr.io/@oazmi/kitchensink/0.10.1/src/promiseman.js";
 export { escapeLiteralStringForRegex } from "./deps/jsr.io/@oazmi/kitchensink/0.10.1/src/stringman.js";
 export { isArray, isFunction, isNull, isRecord, isString } from "./deps/jsr.io/@oazmi/kitchensink/0.10.1/src/struct.js";
@@ -19,7 +19,8 @@ export declare const enum DEBUG {
 }
 export declare const noop: () => undefined;
 export declare const urlToString: (url: string | URL) => string;
-export declare const ensureRelativeDotSlash: (str: string) => string;
+export declare const isRelativePath: (path: string) => boolean;
+export declare const ensureRelativeDotSlash: (path: string) => string;
 export declare const textEncoder: TextEncoder, textDecoder: TextDecoder;
 /** represents either a regular value `T`, or nullable value (`null | undefined`), or a `Promise` thereof. */
 export type MaybePromiseOrNull<T> = MaybePromise<T | null | undefined>;

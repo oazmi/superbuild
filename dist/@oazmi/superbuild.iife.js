@@ -370,6 +370,9 @@
     concatenatible_segments.shift();
     return normalizePosixPath(concatenatible_segments.join(""));
   };
+  var joinPaths = (...segments) => {
+    return joinPosixPaths(...segments.map(pathToPosixPath));
+  };
   var resolvePosixPathFactory = (absolute_current_dir, absolute_segment_test_fn = isAbsolutePath) => {
     const getCwdPath = isString(absolute_current_dir) ? (() => absolute_current_dir) : absolute_current_dir;
     return (...segments) => {
@@ -640,8 +643,11 @@ please report this issue to "https://github.com/omar-azmi/kitchensink_ts/issues"
   var dotslash2 = "./";
   var dotdotslash2 = "../";
   var string_starts_with2 = (str, starts_with) => str.startsWith(starts_with);
-  var ensureRelativeDotSlash = (str) => {
-    return string_starts_with2(str, dotslash2) || string_starts_with2(str, dotdotslash2) ? str : string_starts_with2(str, sep2) ? "." + str : dotslash2 + str;
+  var isRelativePath = (path) => {
+    return string_starts_with2(path, dotslash2) || string_starts_with2(path, dotdotslash2);
+  };
+  var ensureRelativeDotSlash = (path) => {
+    return isRelativePath(path) ? path : string_starts_with2(path, sep2) ? "." + path : dotslash2 + path;
   };
   var textEncoder2 = new TextEncoder();
   var textDecoder2 = new TextDecoder();
@@ -1782,6 +1788,44 @@ ${json_stringify(response.headers)}`;
     }
   };
 
+  // src/plugins/imports_rerouter.ts
+  var normalize_abs_path = (abs_path) => {
+    return pathToPosixPath(abs_path).toLowerCase();
+  };
+  var create_import_path_key = (imported_entity) => {
+    const abs_import_path = imported_entity.initialPath ?? imported_entity.outputPath, path_key = normalize_abs_path(abs_import_path);
+    return path_key;
+  };
+  var importsRerouterPluginSetup = (config) => {
+    const { initialPath, outputPath, imports } = config, imports_map = new Map(imports.map((imported_entity) => {
+      return [create_import_path_key(imported_entity), imported_entity];
+    }));
+    return async (build) => {
+      build.onResolve({ filter: /.*/ }, (args) => {
+        if (args.kind === "entry-point") {
+          return;
+        }
+        const { path } = args, is_relative = isRelativePath(path), abs_path = is_relative ? joinPaths(initialPath, path) : path, path_key = normalize_abs_path(abs_path), imported_entity = imports_map.get(path_key);
+        if (isNull(imported_entity)) {
+          const warning_text = `[importsRerouterPlugin]: expected the following import entity to be part of the provided list of imports: "${path_key}".`;
+          return { path, external: true, warnings: [{ location: { file: initialPath }, text: warning_text }] };
+        }
+        const new_path = isNull(imported_entity.initialPath) ? abs_path : imported_entity.outputPath;
+        if (imported_entity.external) {
+          return { path: new_path, external: true };
+        }
+        const rel_path = relativePath(outputPath ?? initialPath, abs_path);
+        return { path: rel_path, external: true };
+      });
+    };
+  };
+  var importsRerouterPlugin = (config) => {
+    return {
+      name: "oazmi-superbuild-imports_rerouter-plugin",
+      setup: importsRerouterPluginSetup(config)
+    };
+  };
+
   // src/super/plugin_build.ts
   var ORIGINAL_PLUGINDATA = Symbol();
   var ORIGINAL_PLUGINDATA_DNE = Symbol();
@@ -1926,6 +1970,60 @@ ${json_stringify(response.headers)}`;
     onEmit(options, callback) {
       const { filter, inputs } = options;
       this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, inputs, callback });
+    }
+    /** re-route the statically analyzable relative imports of an emitted js or css file's contents.
+     * this process is akin to either moving/renaming the base emitted file to a different directory,
+     * and/or individually renaming the import paths of a select number of dependency files.
+     *
+     * @param on_emit_args the same `OnEmitArgs` that you receive in your {@link onEmit} hook's callback function.
+     *   this will describe your emitted output file's contents and its original output path,
+     *   in addition to all of the imports that it performs (and any imported entities that may need to have their paths updated).
+     * @param loader specify the kind of content that's in your emitted file.
+     *   only `js` and `css` files are currently supported,
+     *   as only these two can have their import statements natively parse by esbuild
+     *   (which is what we use for modifying the relative import paths).
+     * @param updated_output_path the new path where your emitted output file is to be migrated to.
+     *   you should ideally provide an absolute path here; but if you don't,
+     *   it will be assumed that the path is relative to `on_emit_args.outputPath`.
+     * @returns the new updated contents of the migrated file, any errors, and the migrated path
+     *   (which is the same as the input {@link updated_output_path}, but resolved to become an absolute path),
+     * 	 using the same interface of an {@link onEmit} hook's callback function's return value.
+     *
+     * > [!note]
+     * > remember, the returned value is merely the transformed input content.
+     * > it does **not** implicitly apply the new contents onto the underlying virtual output file.
+     * > for that, you will have to use the returned value of this method as the returned value for your resource's
+     * > {@link onEmit} hook's callback function.
+    */
+    async rerouteImports(on_emit_args, loader, updated_output_path) {
+      const { outputPath: initialPath, contents, imports = [] } = on_emit_args, output_dir = pathToPosixPath(parseFilepathInfo(initialPath).dirpath), outputPath = isNull(updated_output_path) ? void 0 : isRelativePath(updated_output_path) ? joinPaths(initialPath, updated_output_path) : updated_output_path, plugin_config = { initialPath, outputPath, imports };
+      const build_result = await this.basePluginBuild.esbuild.build({
+        stdin: {
+          contents,
+          loader,
+          resolveDir: output_dir,
+          sourcefile: initialPath
+        },
+        format: "esm",
+        write: false,
+        bundle: true,
+        minify: false,
+        treeShaking: false,
+        plugins: [importsRerouterPlugin(plugin_config)]
+      });
+      const warnings = [...build_result.warnings], errors = [...build_result.errors], output_files = build_result.outputFiles, migrated_contents = output_files.at(0)?.contents ?? new Uint8Array();
+      if (output_files.length !== 1) {
+        errors.push({
+          text: `[SuperBuildPlugin.renameEmittedOutput]: expected only a single file to be emitted when renaming to "${outputPath ?? initialPath}".`,
+          location: { file: initialPath }
+        });
+      }
+      return {
+        path: outputPath ?? initialPath,
+        contents: migrated_contents,
+        warnings,
+        errors
+      };
     }
   };
 
