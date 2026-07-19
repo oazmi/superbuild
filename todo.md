@@ -40,7 +40,7 @@
 
 ## pre-version `0.2.1` todo list
 
-- [ ] introduce an `importedBy` filter to `OnEmitOptions`,
+- [x] introduce an `importedBy` filter to `OnEmitOptions`,
       to make it possible to intercept certain resources that are dynamically imported _by_ the given set of emitted output files.
       I think I'll want its interface to be `type ImportedBy = Omit<OnEmitOptions, "importedBy">`,
       so that one can recursively select the filter that would apply to the resource that is importing the thing that we wish to intercept.
@@ -48,6 +48,8 @@
       function is proving to be difficult in the html's `onEmit` stage,
       which comes _after_ the inlined scripts/styles have been processed by the `onEmit` stage.
       a forward lookahead mechanism would simplify my logic by a good amount.
+  > (202-07-19) DONE: added `type OnEmitOptions["importedBy"] = OnEmitOptions` without any omissions,
+  > as it was trivial to make it work recursively in our [`OutputFileEntity.matchOnEmitFilter`](./src/esbuild/outputfile.ts) method.
 
 ## (2026-07-18) pre-version `0.2.0` todo list
 

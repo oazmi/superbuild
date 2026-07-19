@@ -328,6 +328,29 @@ export interface OnEmitOptions {
 	*/
 	inputs?: Array<OnEmitOptions_InputFilter>
 
+	/** a filter to recursively describe _what_ your emitted resource is getting imported _by_.
+	 * in essence, this filter lets you perform a look ahead, before you miss intercepting an emitted output,
+	 * and only realize after the fact, once you reach a certain dependent file
+	 * (and consequently being prohibited from modifying the contents or output path of the dependency file).
+	 *
+	 * @example
+	 *
+	 * if you want to intercept all emitted js-files that _are being_
+	 * dynamically imported _by_ files that originated from an input that used an `"html"` loader,
+	 * then you would declare your filter as such:
+	 *
+	 * ```ts
+	 * my_js_filter: OnEmitOptions = {
+	 * 	filter: new RegExp("\\.js$"),
+	 * 	importedBy: {
+	 * 		filter: new RegExp(".*"),
+	 * 		inputs: [{ filter: new RegExp(".*"), loader: "html" }],
+	 * 	},
+	 * }
+	 * ```
+	*/
+	importedBy?: OnEmitOptions
+
 	// TODO: should I also add an `imports` filter as an option here? I think it'll be useful under certain cases,
 	// although it won't provide anything that cannot already be achieved by capturing all emitted resources and then checking if an import is found.
 }

@@ -161,7 +161,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 	/** test if an `onEmit` handler's filters apply to _this_ output file entity. */
 	protected matchOnEmitFilter(options: OnEmitOptions): boolean {
 		const
-			{ filter, inputs: input_filters } = options,
+			{ filter, inputs: input_filters, importedBy: imported_by_filter } = options,
 			output_path = this.outputPath
 		// test the output file name filter first.
 		// the reason why `this.initialPath` is not used is because it is impossible for a file entity to be renamed before it goes through the `onEmit` stage.
@@ -179,6 +179,29 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 					&& (loader ? loader === bundled_file.loader : true)
 					&& (transformLoader ? transformLoader === bundled_file.transformLoader : true)
 			})
+			if (!at_least_one_file_satisfies_conditions) { return false }
+		}
+
+		// finally, we test if this output entity is being imported by a file that matches the desired `imported_by_filter`.
+		// TODO: this operation is not currently optimized, and its complexity is `O((N*M)^D)`,
+		// where `N` is the number of emitted files, `M` is the average number of imports per file,
+		// and `D` is the depth of the number of `importedBy` filters.
+		// the complexity can be easily be reduced to just `M*D` if I prepare an appropriate DAG; but that's for latter.
+		if (!isNull(imported_by_filter)) {
+			let at_least_one_file_satisfies_conditions = false
+			for (const [output_path_key, entity] of this.metafile.outputFileEntities) {
+				const
+					dependencies = entity.imports,
+					// check if **this** entity is being imported by the given `entity`.
+					self_is_being_imported = dependencies.some((dep_node) => { return dep_node.entity === this })
+				if (!self_is_being_imported) { continue }
+				// if the given `entity` does import our **this** entity,
+				// then we'll recursively test it against the `imported_by_filter`, via its `matchOnEmitFilter` method.
+				if (!entity.matchOnEmitFilter(imported_by_filter)) { continue }
+				// if this `entity` has passed its filter test as well, then we've satisfied the `imported_by_filter`, and we may exit now.
+				at_least_one_file_satisfies_conditions = true
+				break
+			}
 			if (!at_least_one_file_satisfies_conditions) { return false }
 		}
 
