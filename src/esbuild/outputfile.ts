@@ -161,7 +161,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 	/** test if an `onEmit` handler's filters apply to _this_ output file entity. */
 	protected matchOnEmitFilter(options: OnEmitOptions): boolean {
 		const
-			{ filter, inputs: input_filters, importedBy: imported_by_filter } = options,
+			{ filter, inputs: input_filters, importedBy: imported_by_filters = [] } = options,
 			output_path = this.outputPath
 		// test the output file name filter first.
 		// the reason why `this.initialPath` is not used is because it is impossible for a file entity to be renamed before it goes through the `onEmit` stage.
@@ -187,22 +187,25 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 		// where `N` is the number of emitted files, `M` is the average number of imports per file,
 		// and `D` is the depth of the number of `importedBy` filters.
 		// the complexity can be easily be reduced to just `M*D` if I prepare an appropriate DAG; but that's for latter.
-		if (!isNull(imported_by_filter)) {
-			let at_least_one_file_satisfies_conditions = false
-			for (const [output_path_key, entity] of this.metafile.outputFileEntities) {
+		const all_importers = imported_by_filters.length <= 0 ? []
+			: [...this.metafile.outputFileEntities.values()].filter((entity) => {
 				const
 					dependencies = entity.imports,
 					// check if **this** entity is being imported by the given `entity`.
 					self_is_being_imported = dependencies.some((dep_node) => { return dep_node.entity === this })
-				if (!self_is_being_imported) { continue }
-				// if the given `entity` does import our **this** entity,
-				// then we'll recursively test it against the `imported_by_filter`, via its `matchOnEmitFilter` method.
-				if (!entity.matchOnEmitFilter(imported_by_filter)) { continue }
-				// if this `entity` has passed its filter test as well, then we've satisfied the `imported_by_filter`, and we may exit now.
-				at_least_one_file_satisfies_conditions = true
-				break
-			}
-			if (!at_least_one_file_satisfies_conditions) { return false }
+				return self_is_being_imported
+			})
+
+		for (const imported_by_filter of imported_by_filters) {
+			// for each "imported-by" filter, we'll test if at least one of the importer entities satisfy the condition.
+			const at_least_one_importer_satisfies_conditions = all_importers.some((importer_entity) => {
+				// to test if the importer satisfies the "imported-by" condition,
+				// all we're going to have to do is recursively apply the filter test via its `matchOnEmitFilter` method.
+				return importer_entity.matchOnEmitFilter(imported_by_filter)
+			})
+			// if not a single importer entity has managed to satisfy the given "imported-by" filter,
+			// then **this** output file does not qualify the given filter.
+			if (!at_least_one_importer_satisfies_conditions) { return false }
 		}
 
 		// if we've made it to here, then this entity has passed the filter test, and may proceed to the `onEmit` callback hook.

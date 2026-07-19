@@ -333,6 +333,12 @@ export interface OnEmitOptions {
 	 * and only realize after the fact, once you reach a certain dependent file
 	 * (and consequently being prohibited from modifying the contents or output path of the dependency file).
 	 *
+	 * if you provide multiple filters inside, then it will act as an **AND** clause; meaning that:
+	 * - at least one of the importers of this entity should satisfy the `importedBy[0]` filter,
+	 * - **AND** at least one of the importers of this entity should satisfy the `importedBy[1]` filter,
+	 * - **AND** at least one of the importers of this entity should satisfy the `importedBy[2]` filter,
+	 * - **AND** so on and so forth.
+	 *
 	 * @example
 	 *
 	 * if you want to intercept all emitted js-files that _are being_
@@ -342,14 +348,16 @@ export interface OnEmitOptions {
 	 * ```ts
 	 * my_js_filter: OnEmitOptions = {
 	 * 	filter: new RegExp("\\.js$"),
-	 * 	importedBy: {
+	 * 	importedBy: [{
 	 * 		filter: new RegExp(".*"),
 	 * 		inputs: [{ filter: new RegExp(".*"), loader: "html" }],
-	 * 	},
+	 * 	}],
 	 * }
 	 * ```
 	*/
-	importedBy?: OnEmitOptions
+	importedBy?: Array<OnEmitOptions>
+
+	imports?: Array<OnEmitOptions>
 
 	// TODO: should I also add an `imports` filter as an option here? I think it'll be useful under certain cases,
 	// although it won't provide anything that cannot already be achieved by capturing all emitted resources and then checking if an import is found.
