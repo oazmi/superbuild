@@ -6,6 +6,8 @@
       will reflect into the dependent script's content, by utilizing a sub-build and declaring all imports as external,
       and renaming all updated relative imports accordingly.
   > (2026-07-20) this capability was originally set for the `0.2.2 todo list`, but I've decided to delay it indefinitely.
+- [ ] make it so that the user can declare the `isAbsolute` path-segment test function when instantiating a `SuperBuild`,
+      so that it is not just fixed to my `@oazmi/kitchensink/pathman`'s built-in `isAbsolute` function.
 
 ## issues list
 
@@ -46,6 +48,7 @@
   > now that the user can emulate this feature themselves with the introduction of `OnEmitResult.reEmit`
   > and `SuperPluginBuild.rerouteImport`, with even more granular control.
 - [ ] update [`readme.md`](./readme.md) to boast the new features.
+- [x] add the ability for users to resolve local paths via a new `SuperPluginBuild.resolvePath` method.
 - [x] make the second argument of `OnEmitCallback` (i.e. the `output_file_registry`) not only permit output file entity search,
       but also enable searching by the input sources' resolved paths.
   > (2026-07-20) DONE: added a [`ReducedMetafile`](./src/esbuild/metafile.ts) class that provides a subset of the `Metafile`'s features,

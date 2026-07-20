@@ -369,15 +369,11 @@ const format_resolved_resource_registry = (registry: SuperBuildContext["resolved
 }
 
 /** a reduced implementation of {@link Metafile} that is safer for consumer-use. */
-export class ReducedMetafile implements Pick<Metafile, "resolvePath" | "getFile" | "findFilesFromSources"> {
+export class ReducedMetafile implements Pick<Metafile, "getFile" | "findFilesFromSources"> {
 	private metafile: Metafile
 
 	constructor(metafile: Metafile) {
 		this.metafile = metafile
-	}
-
-	public resolvePath(path: Path): AbsolutePath {
-		return this.metafile.resolvePath(path)
 	}
 
 	public getFile(output_path_key: string): OutputFileEntity | undefined {
