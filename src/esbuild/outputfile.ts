@@ -10,6 +10,7 @@ import type { SuperPluginBuild } from "../super/plugin_build.ts"
 import type { BundledInputFile, ImportedEntity, OnEmitOptions, OnEmitResult, OnTransformResult } from "../super/typedefs.ts"
 import type { AbsolutePath, NamespacedPath, Path } from "../typedefs.ts"
 import type { Metafile } from "./metafile.ts"
+import type { EsbuildPartialMessage } from "./strongtypes.ts"
 import type { EsbuildOutputFile } from "./typedefs.ts"
 
 
@@ -224,6 +225,39 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 			return { key, outputPath, initialPath, kind, external, with: with_attr, write }
 		})
 
+		const
+			warnings: EsbuildPartialMessage[] = [],
+			errors: EsbuildPartialMessage[] = []
+		let
+			prior_on_emit_result: OnEmitResult | undefined = undefined,
+			prior_re_emit_data: OnEmitResult["reEmitData"] = undefined
+
+		// this loop keeps performing "on-emit" actions, until either the resulting `reEmit` option is not `true`,
+		// or if an error cropped up, or if no "onEmit" hook intercepted this resource at all.
+		while (true) {
+			const on_emit_result = await this.performOnEmitOnce(on_emit_handlers, imported_entities, prior_re_emit_data)
+			// if no hook acted upon this resource, then it is time to exit.
+			if (isNull(on_emit_result)) { break }
+			// update the re-emit data if it was defined by the result.
+			prior_re_emit_data = on_emit_result.reEmitData ?? prior_re_emit_data
+			prior_on_emit_result = on_emit_result
+			warnings.push(...(on_emit_result.warnings ?? []))
+			errors.push(...(on_emit_result.errors ?? []))
+			// if at least one error has accumulated, then it's time to exit the loop immediately.
+			if (errors.length > 0) { break }
+			// if re-emission was not demanded by the returned result, then it is time to exit the loop.
+			if (!(on_emit_result.reEmit ?? false)) { break }
+		}
+
+		return { ...prior_on_emit_result, warnings, errors }
+	}
+
+	/** performs a single `onEmit` action on _this_ output file entity, without performing any kind of re-emission. */
+	private async performOnEmitOnce(
+		on_emit_handlers: Array<OnEmitHandler>,
+		imported_entities: ImportedEntity[],
+		reEmitData?: OnEmitResult["reEmitData"],
+	): Promise<OnEmitResult | undefined> {
 		// attempt at matching the output file with all available `onEmit` hooks' filters,
 		// and stopping at the first match that yields a viable result.
 		for (const handler of on_emit_handlers) {
@@ -233,6 +267,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 				contents: this.contents,
 				inputs: this.inputs,
 				imports: imported_entities,
+				reEmitData: reEmitData,
 			})
 			if (isNull(on_emit_result)) { continue }
 
@@ -253,6 +288,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 			on_emit_result.errors?.forEach((error) => { if (!error.pluginName) { error.pluginName = pluginName } })
 			return on_emit_result
 		}
+		return undefined
 	}
 
 	/** rename this file. you can either provide an absolute path, or a relative path.

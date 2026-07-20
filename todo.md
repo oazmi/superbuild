@@ -40,6 +40,19 @@
 
 ## pre-version `0.2.1` todo list
 
+- [ ] make the `OnEmitCallback` function receive a second argument that would allow the user to pull any `OutputFileEntity`
+      from the `metafile`'s `outputFileEntities` registry.
+      it's kind of risky (if the user improperly modifies the output path or the `imports` field),
+      but also super convenient for reading the contents of all available output files.
+- [ ] I think it would be a good idea to permit `OnEmitArgs` to also include a readonly `importedBy: Array<OutputFileEntity>` field.
+- [x] add the ability to re-emit output entities that have been processed via an `onEmit` hook,
+      by declaring an optional `OnEmitResult.reEmit` field to `true`.
+      this feature would permit the user to stack up multiple `onEmit` handlers on a single output resource;
+      which is something that I think is crucial when multiple plugins are working together, and expecting input from one another.
+  > (2026-07-19) DONE: added the new fields `reEmit?: boolean` and `reEmitData?: Record<any, any>` to `OnEmitResult`,
+  > and also migrate the bulk of logic inside the [`OutputFileEntity.performOnEmit`](./src/esbuild/outputfile.ts)
+  > method to a new `OutputFileEntity.performOnEmitOnce` method, while making the old `OutputFileEntity.performOnEmit`
+  > method handle the re-emission loop logic and halting conditions.
 - [x] introduce an `importedBy` filter to `OnEmitOptions`,
       to make it possible to intercept certain resources that are dynamically imported _by_ the given set of emitted output files.
       I think I'll want its interface to be `type ImportedBy = Omit<OnEmitOptions, "importedBy">`,
@@ -48,7 +61,7 @@
       function is proving to be difficult in the html's `onEmit` stage,
       which comes _after_ the inlined scripts/styles have been processed by the `onEmit` stage.
       a forward lookahead mechanism would simplify my logic by a good amount.
-  > (202-07-19) DONE: added `type OnEmitOptions["importedBy"] = Array<OnEmitOptions>` without any omissions,
+  > (2026-07-19) DONE: added `type OnEmitOptions["importedBy"] = Array<OnEmitOptions>` without any omissions,
   > as it was trivial to make it work recursively in our [`OutputFileEntity.matchOnEmitFilter`](./src/esbuild/outputfile.ts) method.
 
 ## (2026-07-18) pre-version `0.2.0` todo list
