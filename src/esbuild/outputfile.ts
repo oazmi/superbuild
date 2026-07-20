@@ -10,6 +10,7 @@ import type { SuperPluginBuild } from "../super/plugin_build.ts"
 import type { BundledInputFile, ImportedEntity, OnEmitOptions, OnEmitResult, OnTransformResult } from "../super/typedefs.ts"
 import type { AbsolutePath, NamespacedPath, Path } from "../typedefs.ts"
 import type { Metafile } from "./metafile.ts"
+import type { EsbuildPartialMessage } from "./strongtypes.ts"
 import type { EsbuildOutputFile } from "./typedefs.ts"
 
 
@@ -64,6 +65,9 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 	 * or user-import (i.e. {@link OnTransformResult.imports}) statement.
 	*/
 	public imports: Readonly<ImportedEntityNode<any>>[] = []
+
+	/** a set of emitted output entities that import _this_ file entity during runtime. */
+	public importedBy: Set<OutputFileEntity> = new Set()
 
 	protected metafile: Metafile
 
@@ -158,10 +162,19 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 		return imported_entities
 	}
 
+	/** broadcast _this_ entity to its {@link imports}, so that it (_this_ object) gets registered to their (the import's) {@link importedBy} list. */
+	public broadcastImporter() {
+		for (const { entity } of this.imports) {
+			const is_external_entity = "externalPath" in entity
+			if (is_external_entity) { continue }
+			entity.importedBy.add(this)
+		}
+	}
+
 	/** test if an `onEmit` handler's filters apply to _this_ output file entity. */
 	protected matchOnEmitFilter(options: OnEmitOptions): boolean {
 		const
-			{ filter, inputs: input_filters } = options,
+			{ filter, inputs: input_filters, importedBy: imported_by_filters = [] } = options,
 			output_path = this.outputPath
 		// test the output file name filter first.
 		// the reason why `this.initialPath` is not used is because it is impossible for a file entity to be renamed before it goes through the `onEmit` stage.
@@ -182,6 +195,20 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 			if (!at_least_one_file_satisfies_conditions) { return false }
 		}
 
+		// finally, we test if this output entity is being imported by a file that matches the desired `imported_by_filter`.
+		const all_importers = [...this.importedBy]
+		for (const imported_by_filter of imported_by_filters) {
+			// for each "imported-by" filter, we'll test if at least one of the importer entities satisfy the condition.
+			const at_least_one_importer_satisfies_conditions = all_importers.some((importer_entity) => {
+				// to test if the importer satisfies the "imported-by" condition,
+				// all we're going to have to do is recursively apply the filter test via its `matchOnEmitFilter` method.
+				return importer_entity.matchOnEmitFilter(imported_by_filter)
+			})
+			// if not a single importer entity has managed to satisfy the given "imported-by" filter,
+			// then **this** output file does not qualify the given filter.
+			if (!at_least_one_importer_satisfies_conditions) { return false }
+		}
+
 		// if we've made it to here, then this entity has passed the filter test, and may proceed to the `onEmit` callback hook.
 		return true
 	}
@@ -197,7 +224,46 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 				write = is_external_entity ? false : entity.write
 			return { key, outputPath, initialPath, kind, external, with: with_attr, write }
 		})
+		const
+			metafile = this.metafile,
+			importer_paths = [...this.importedBy].map((entity) => { return entity.initialPath ?? entity.outputPath }),
+			output_file_registry = metafile.getFile.bind(metafile)
 
+		const
+			warnings: EsbuildPartialMessage[] = [],
+			errors: EsbuildPartialMessage[] = []
+		let
+			prior_on_emit_result: OnEmitResult | undefined = undefined,
+			prior_re_emit_data: OnEmitResult["reEmitData"] = undefined
+
+		// this loop keeps performing "on-emit" actions, until either the resulting `reEmit` option is not `true`,
+		// or if an error cropped up, or if no "onEmit" hook intercepted this resource at all.
+		while (true) {
+			const on_emit_result = await this.performOnEmitOnce(on_emit_handlers, imported_entities, importer_paths, output_file_registry, prior_re_emit_data)
+			// if no hook acted upon this resource, then it is time to exit.
+			if (isNull(on_emit_result)) { break }
+			// update the re-emit data if it was defined by the result.
+			prior_re_emit_data = on_emit_result.reEmitData ?? prior_re_emit_data
+			prior_on_emit_result = on_emit_result
+			warnings.push(...(on_emit_result.warnings ?? []))
+			errors.push(...(on_emit_result.errors ?? []))
+			// if at least one error has accumulated, then it's time to exit the loop immediately.
+			if (errors.length > 0) { break }
+			// if re-emission was not demanded by the returned result, then it is time to exit the loop.
+			if (!(on_emit_result.reEmit ?? false)) { break }
+		}
+
+		return { ...prior_on_emit_result, warnings, errors }
+	}
+
+	/** performs a single `onEmit` action on _this_ output file entity, without performing any kind of re-emission. */
+	private async performOnEmitOnce(
+		on_emit_handlers: Array<OnEmitHandler>,
+		imported_entities: ImportedEntity[],
+		importer_paths: AbsolutePath[],
+		output_file_registry: Metafile["getFile"],
+		reEmitData?: OnEmitResult["reEmitData"],
+	): Promise<OnEmitResult | undefined> {
 		// attempt at matching the output file with all available `onEmit` hooks' filters,
 		// and stopping at the first match that yields a viable result.
 		for (const handler of on_emit_handlers) {
@@ -207,7 +273,9 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 				contents: this.contents,
 				inputs: this.inputs,
 				imports: imported_entities,
-			})
+				importedBy: importer_paths,
+				reEmitData: reEmitData,
+			}, output_file_registry)
 			if (isNull(on_emit_result)) { continue }
 
 			// updating the emitted file `path` and `contents` from the `result`.
@@ -227,6 +295,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 			on_emit_result.errors?.forEach((error) => { if (!error.pluginName) { error.pluginName = pluginName } })
 			return on_emit_result
 		}
+		return undefined
 	}
 
 	/** rename this file. you can either provide an absolute path, or a relative path.
