@@ -54,7 +54,7 @@ export declare class Metafile implements MetafileConfig {
     /** find the file entity corresponding to the given absolute output path. you won't receive entities associated with external paths/references. */
     getFile(output_path_key: string): OutputFileEntity | undefined;
     /** find all file entities that incorporate (i.e. originate from) certain namespaced source files/resources into their bundled form. */
-    findFileFromSources(predicate_fn: (file_sources: Array<{
+    findFilesFromSources(predicate_fn: (file_sources: Array<{
         namespace: string;
         path: string;
     }>) => boolean): Array<OutputFileEntity>;
@@ -90,6 +90,16 @@ export declare class Metafile implements MetafileConfig {
     static asAbsolute(esbuild_metafile: EsbuildMetafile, config: {
         resolvePath: (path: string) => string;
     }): EsbuildMetafile;
+}
+/** a reduced implementation of {@link Metafile} that is safer for consumer-use. */
+export declare class ReducedMetafile implements Pick<Metafile, "getFile" | "findFilesFromSources"> {
+    private metafile;
+    constructor(metafile: Metafile);
+    getFile(output_path_key: string): OutputFileEntity | undefined;
+    findFilesFromSources(predicate_fn: (file_sources: Array<{
+        namespace: string;
+        path: string;
+    }>) => boolean): Array<OutputFileEntity>;
 }
 export {};
 //# sourceMappingURL=metafile.d.ts.map

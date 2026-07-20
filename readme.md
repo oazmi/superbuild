@@ -109,17 +109,23 @@ const my_plugin_setup: SuperPluginSetup = (build: SuperPluginBuild) => {
 
 ### _onEmit_
 
-Finally, the new `build.onEmit` function lets you capture output file contents _after_ they have been bundled,
-transform them in any arbitrary manner (such as re-incorporating user-made imports from the [transform stage](#ontransform)),
+The new `build.onEmit` function lets you capture output file contents _after_ they have been bundled,
+to transform them in any arbitrary manner (such as re-incorporating user-made imports from the [transform stage](#ontransform)),
 and finally renaming them (in topological dependency order).
+
+The second argument provided to your `onEmit` callback function is an output file registry,
+that lets you inspect the contents and paths of _other_ emitted files (though, it is strictly readonly).
 
 example:
 
 ```ts
-import type { ImportedEntity, OnEmitArgs, SuperPluginBuild, SuperPluginSetup } from "@oazmi/superbuild"
+import type { ImportedEntity, OnEmitArgs, ReducedMetafile, SuperPluginBuild, SuperPluginSetup } from "@oazmi/superbuild"
 
 const my_plugin_setup: SuperPluginSetup = (build: SuperPluginBuild) => {
 	// ...
+	// this symbol will be imprinted onto `args.reEmitData` to stop it from being processed again when re-emitted.
+	const ALREADY_CAPTURED = Symbol()
+
 	build.onEmit({
 		filter: /.*/,
 		inputs: [{
@@ -129,28 +135,78 @@ const my_plugin_setup: SuperPluginSetup = (build: SuperPluginBuild) => {
 			loader: "html", // loader based filter.
 			transformLoader: "copy", // on-transform's loader based filter.
 		}],
-	}, async (args: OnEmitArgs) => {
+	}, async (args: OnEmitArgs, output_files_registry: ReducedMetafile) => {
+		// this logic lets prevents the emitted resource from being processed again when re-emitted later.
+		if (args.reEmitData?.[ALREADY_CAPTURED] === true) {
+			return
+		}
+
 		const contents = typeof args.contents === "string" ? args.contents : new TextDecoder().decode(args.contents)
 		const html_doc = new DOMParser().parseFromString(contents, "text/html")
 		// just a hypothetical way of re-incorporating the bundled imports.
 		args.imports.forEach((imported_entity: ImportedEntity) => {
 			const { key, outputPath, write, external, kind } = imported_entity
-			if (external || !write) return
+			if (external || !write) {
+				return
+			}
 			console.assert(kind === "user-import")
 			html_doc.querySelectorAll(`#${key}`).forEach((dom_element) => {
 				dom_element.setAttribute("src", outputPath)
 			})
 		})
+
+		// reading the `emitData` contained within the input source.
+		console.assert(args.inputs.length === 1, "expected the bundled html file to be made up of just a single input html source file.")
+		const emit_data = args.inputs[0].emitData as { timeStamp: number; copywrites: string[] }
+		console.assert(emit_data.copywrites.includes("Seto frikking Kaiba"), "expected Seto Kaiba to be one of the stakeholders.")
+
+		// renaming the output file's path for old schoolers.
 		const new_output_path = args.outputPath.replace(/\.html$/, ".xhtml")
+		const reEmitData = args.reEmitData ?? {}
+		reEmitData[ALREADY_CAPTURED] = true
 		return {
 			contents: html_doc.documentElement.outerHTML,
 			path: new_output_path,
 			write: true,
+			reEmit: true, // you can specify if this output entity needs to be sent to other `onEmit` handlers.
+			reEmitData: reEmitData, // and in case you do re-emit the processed resource, including a `reEmitData` is recommended.
 		}
 	})
 	// ...
 }
 ```
+
+### _resolvePath_
+
+The new `build.resolvePath` method lets you resolve local file paths with respect to either the current working directory (`cwd`),
+or the build's `absWorkingDir` (preferred if defined).
+
+example:
+
+```ts
+import type { OnResolveArgs, SuperPluginBuild, SuperPluginSetup } from "@oazmi/superbuild"
+
+const my_plugin_setup: SuperPluginSetup = (build: SuperPluginBuild) => {
+	// ...
+	build.onResolve({ filter: /\.meow$/ }, async (args: OnResolveArgs) => {
+		// declare all relative `.meow` files to be located under the build-directory's `./nyaa/` folder.
+		const new_path = build.resolvePath("./nyaa/", args.path)
+		return { path: new_path }
+	})
+	// ...
+}
+```
+
+### _rerouteImports_
+
+Finally, the newly added `build.rerouteImports` method is intended to be used inside an [`onEmit`](#onemit) hook's callback function.
+It lets you modify the `contents` of your emitted `js` or `css` file entity, so that its import paths are updated with respect to:
+
+1. The `args.imports: Array<ImportedEntity>`, when the `ImportedEntity.initialPath` is not `undefined`
+   (which indicates that the `ImportedEntity.outputPath` was actually updated to a new path in a prior `onEmit` callback).
+2. The provided `updated_output_path` (optional 3rd argument).
+   specifying this optional argument in `build.rerouteImports` indicates that the resource being processed (i.e. `args`)
+   itself is being moved to an alternate path (which would mean that all relative links would need to be updated).
 
 ## Other Notable Features
 

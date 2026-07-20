@@ -7,7 +7,7 @@ import { type Require } from "../deps.js";
 import type { OnEmitHandler } from "../super/build_context.js";
 import type { BundledInputFile, ImportedEntity, OnEmitOptions, OnEmitResult } from "../super/typedefs.js";
 import type { AbsolutePath, Path } from "../typedefs.js";
-import type { Metafile } from "./metafile.js";
+import { type Metafile } from "./metafile.js";
 import type { EsbuildOutputFile } from "./typedefs.js";
 /** an imported entity node, similar to {@link ImportedEntity}, but with a shared {@link entity} object field. */
 export interface ImportedEntityNode<K = any> extends Pick<ImportedEntity<K>, "key" | "with" | "kind" | "external"> {

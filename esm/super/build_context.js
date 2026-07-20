@@ -5,7 +5,7 @@
  *
  * @module
 */
-import { isArray, object_entries, object_fromEntries, parseFilepathInfo } from "../deps.js";
+import { ensureEndSlash, fileUrlToLocalPath, getRuntimeCwd, identifyCurrentRuntime, isArray, object_entries, object_fromEntries, parseFilepathInfo, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "../deps.js";
 import { Metafile } from "../esbuild/metafile.js";
 import { allEsbuildLoaders } from "../esbuild/typedefs.js";
 import { logLogger, noopLogger } from "../funcdefs.js";
@@ -48,6 +48,10 @@ export class SuperBuildContext {
     shouldOverwrite = false;
     /** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
     log;
+    /** a path resolver function that joins `path_segments` wherever they're relative.
+     * this is intended to be used exclusively by the {@link resolvePath} method, and not by other external things.
+    */
+    resolve_path;
     constructor(options) {
         options = this.initFields(options);
         const format = options.format;
@@ -70,6 +74,8 @@ export class SuperBuildContext {
         this.genericLoader = object_fromEntries(object_entries(loader).filter(([ext, loader_type]) => {
             return !allEsbuildLoaders.includes(loader_type);
         }));
+        const abs_working_dir = pathToPosixPath(options.absWorkingDir ?? "./"), runtime_cwd = ensureEndSlash(getRuntimeCwd(identifyCurrentRuntime())), cwd = fileUrlToLocalPath(resolveAsUrl(abs_working_dir, runtime_cwd)), resolve_path = resolvePathFactory(cwd);
+        this.resolve_path = resolve_path;
         return { loader, ...esbuild_options };
     }
     processOptions(options) {
@@ -134,9 +140,9 @@ export class SuperBuildContext {
     /** creates the the metafile object from esbuild's {@link EsbuildBuildResult},
      * and registers all output files onto it for the {@link emissionsDriverPlugin} to initiate the next step (`onEmit` stage).
     */
-    createMetafile(result, config) {
+    createMetafile(result) {
         const metafile = new Metafile(result.metafile, {
-            resolvePath: config.resolvePath,
+            resolvePath: this.resolve_path,
             resolvedResourceRegistry: this.resolvedResourceRegistry,
         });
         for (const esbuild_file of result.outputFiles) {
@@ -146,6 +152,12 @@ export class SuperBuildContext {
         // we must run the method below after all output files have been added.
         metafile.scanEsbuildImports();
         return metafile;
+    }
+    /** a path resolver function that joins `path_segments` wherever they're relative,
+     * and resolves with respect to the current working directory (`cwd`) or the esbuild-provided `absWorkingDir`.
+    */
+    resolvePath(...path_segments) {
+        return this.resolve_path(...path_segments);
     }
     /** concludes the build after the all registered {@link onEmitHandlers} and {@link onEndHandlers}
      * have been executed by the {@link emissionsDriverPlugin} when it enters its `onEnd` stage (registered to the "true" `build` object).

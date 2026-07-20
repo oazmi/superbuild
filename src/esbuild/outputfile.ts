@@ -9,7 +9,7 @@ import type { OnEmitHandler, SuperBuildContext } from "../super/build_context.js
 import type { SuperPluginBuild } from "../super/plugin_build.js"
 import type { BundledInputFile, ImportedEntity, OnEmitOptions, OnEmitResult, OnTransformResult } from "../super/typedefs.js"
 import type { AbsolutePath, NamespacedPath, Path } from "../typedefs.js"
-import type { Metafile } from "./metafile.js"
+import { ReducedMetafile, type Metafile } from "./metafile.js"
 import type { EsbuildPartialMessage } from "./strongtypes.js"
 import type { EsbuildOutputFile } from "./typedefs.js"
 
@@ -227,7 +227,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 		const
 			metafile = this.metafile,
 			importer_paths = [...this.importedBy].map((entity) => { return entity.initialPath ?? entity.outputPath }),
-			output_file_registry = metafile.getFile.bind(metafile)
+			output_file_registry = new ReducedMetafile(metafile)
 
 		const
 			warnings: EsbuildPartialMessage[] = [],
@@ -261,7 +261,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 		on_emit_handlers: Array<OnEmitHandler>,
 		imported_entities: ImportedEntity[],
 		importer_paths: AbsolutePath[],
-		output_file_registry: Metafile["getFile"],
+		output_file_registry: ReducedMetafile,
 		reEmitData?: OnEmitResult["reEmitData"],
 	): Promise<OnEmitResult | undefined> {
 		// attempt at matching the output file with all available `onEmit` hooks' filters,
@@ -271,6 +271,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 			const on_emit_result = await handler.callback({
 				outputPath: this.outputPath,
 				contents: this.contents,
+				write: this.write,
 				inputs: this.inputs,
 				imports: imported_entities,
 				importedBy: importer_paths,

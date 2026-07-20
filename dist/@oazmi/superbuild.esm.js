@@ -807,7 +807,7 @@ var OutputFileEntity = class {
     });
     const metafile = this.metafile, importer_paths = [...this.importedBy].map((entity) => {
       return entity.initialPath ?? entity.outputPath;
-    }), output_file_registry = metafile.getFile.bind(metafile);
+    }), output_file_registry = new ReducedMetafile(metafile);
     const warnings = [], errors = [];
     let prior_on_emit_result = void 0, prior_re_emit_data = void 0;
     while (true) {
@@ -837,6 +837,7 @@ var OutputFileEntity = class {
       const on_emit_result = await handler.callback({
         outputPath: this.outputPath,
         contents: this.contents,
+        write: this.write,
         inputs: this.inputs,
         imports: imported_entities,
         importedBy: importer_paths,
@@ -993,7 +994,7 @@ var Metafile = class _Metafile {
     this.warnings.push({ text: `[Metafile.getFile]: no file entity with the following path key was ever added: "${output_path_key}".` });
   }
   /** find all file entities that incorporate (i.e. originate from) certain namespaced source files/resources into their bundled form. */
-  findFileFromSources(predicate_fn) {
+  findFilesFromSources(predicate_fn) {
     const file_entity_matches = [];
     this.outputFileEntities.forEach((file_entity) => {
       const file_sources = file_entity.inputs.map(({ namespace, path }) => ({ namespace, path }));
@@ -1157,6 +1158,18 @@ var format_resolved_resource_registry = (registry) => {
   }
   return { result: registry_lowercase, warnings };
 };
+var ReducedMetafile = class {
+  metafile;
+  constructor(metafile) {
+    this.metafile = metafile;
+  }
+  getFile(output_path_key) {
+    return this.metafile.getFile(output_path_key);
+  }
+  findFilesFromSources(predicate_fn) {
+    return this.metafile.findFilesFromSources(predicate_fn);
+  }
+};
 
 // src/esbuild/typedefs.ts
 var allEsbuildLoaders = [
@@ -1197,23 +1210,21 @@ var INNER_PLUGIN_BUILD = Symbol();
 
 // src/plugins/emissions_driver.ts
 var emissionsDriverPluginSetup = (config) => {
-  const ctx = config.ctx;
+  const buildCtx = config.ctx;
   return (build) => {
-    const abs_working_dir = pathToPosixPath(build.initialOptions.absWorkingDir ?? "./"), runtime_cwd = ensureEndSlash(getRuntimeCwd(identifyCurrentRuntime())), cwd = fileUrlToLocalPath(resolveAsUrl(abs_working_dir, runtime_cwd)), resolve_path = resolvePathFactory(cwd), base_plugin_build = INNER_PLUGIN_BUILD in build ? build[INNER_PLUGIN_BUILD] : build;
-    const longBuildController = ctx.longBuildController, onEmitHandlers = ctx.onEmitHandlers, onEndHandlers = ctx.onEndHandlers;
+    const base_plugin_build = INNER_PLUGIN_BUILD in build ? build[INNER_PLUGIN_BUILD] : build, onEmitHandlers = buildCtx.onEmitHandlers, onEndHandlers = buildCtx.onEndHandlers;
     const performOnEmit = async (metafile) => {
-      const ctx2 = {
-        longBuildController,
+      const ctx = {
+        buildCtx,
         metafile,
-        resolvePath: resolve_path,
         warnings: metafile.warnings,
         errors: []
       };
-      const longbuild_file = findLongBuildFile(ctx2);
+      const longbuild_file = findLongBuildFile(ctx);
       if (isNull(longbuild_file)) {
-        return { warnings: ctx2.warnings, errors: ctx2.errors };
+        return { warnings: ctx.warnings, errors: ctx.errors };
       }
-      await incorporateLongBuildImportedEntities(ctx2, longbuild_file);
+      await incorporateLongBuildImportedEntities(ctx, longbuild_file);
       metafile.scanImporters();
       const files_dependency_graph = metafile.createFileDependencyGraph(), dependency_graph = DependencyGraphNode.fromGraph(files_dependency_graph), source_resource_nodes = DependencyGraphNode.chainNodePromises(dependency_graph), all_node_promises = Promise.all([...dependency_graph.values()].map((node) => node.promise)), on_emit_callback = async (node, dependency_results) => {
         const entity = node.key, on_emit_result = await entity.performOnEmit(onEmitHandlers);
@@ -1231,20 +1242,20 @@ var emissionsDriverPluginSetup = (config) => {
       await all_node_promises.then((all_on_emit_results) => {
         for (const on_emit_result of all_on_emit_results) {
           if (on_emit_result?.warnings) {
-            ctx2.warnings.push(...on_emit_result.warnings);
+            ctx.warnings.push(...on_emit_result.warnings);
           }
           if (on_emit_result?.errors) {
-            ctx2.errors.push(...on_emit_result.errors);
+            ctx.errors.push(...on_emit_result.errors);
           }
         }
       }).catch((errors) => {
         if (isArray(errors)) {
-          ctx2.errors.push(...errors);
+          ctx.errors.push(...errors);
         } else {
-          ctx2.errors.push(errors);
+          ctx.errors.push(errors);
         }
       });
-      return { warnings: ctx2.warnings, errors: ctx2.errors };
+      return { warnings: ctx.warnings, errors: ctx.errors };
     };
     const performOnEnd = async (result) => {
       const on_end_promises = onEndHandlers.map(async (handler) => {
@@ -1273,8 +1284,8 @@ var emissionsDriverPluginSetup = (config) => {
       return { warnings, errors };
     };
     base_plugin_build.onEnd(async (result) => {
-      const metafile = ctx.createMetafile(result, { resolvePath: resolve_path }), on_emit_results = await performOnEmit(metafile), on_end_results = await performOnEnd(result), warnings = concatArrays(on_emit_results?.warnings, on_end_results?.warnings), errors = concatArrays(on_emit_results?.errors, on_end_results?.errors);
-      await ctx.endBuild(metafile);
+      const metafile = buildCtx.createMetafile(result), on_emit_results = await performOnEmit(metafile), on_end_results = await performOnEnd(result), warnings = concatArrays(on_emit_results?.warnings, on_end_results?.warnings), errors = concatArrays(on_emit_results?.errors, on_end_results?.errors);
+      await buildCtx.endBuild(metafile);
       return { warnings, errors };
     });
   };
@@ -1286,8 +1297,8 @@ var emissionsDriverPlugin = (config) => {
   };
 };
 var findLongBuildFile = (ctx) => {
-  const { longBuildController, metafile, errors } = ctx;
-  const longbuild_plugin_namespace = longBuildController.pluginNamespace, longbuild_files = metafile.findFileFromSources((input_sources) => {
+  const { buildCtx, metafile, errors } = ctx;
+  const longbuild_plugin_namespace = buildCtx.longBuildController.pluginNamespace, longbuild_files = metafile.findFilesFromSources((input_sources) => {
     const does_include_longbuild_source_file = input_sources.some(({ path: _source_resolved_path, namespace }) => {
       return namespace === longbuild_plugin_namespace;
     });
@@ -1302,15 +1313,14 @@ var findLongBuildFile = (ctx) => {
 };
 var incorporateLongBuildImportedEntities = async (ctx, longbuild_file) => {
   const {
-    longBuildController,
+    buildCtx,
     metafile,
-    resolvePath,
     warnings
   } = ctx;
-  const longbuild_path = longbuild_file.initialPath ?? longbuild_file.outputPath, longbuild_contents = textDecoder2.decode(longbuild_file.contents), import_entities = await longBuildController.parseLongBuildFileContent(longbuild_contents);
+  const longbuild_path = longbuild_file.initialPath ?? longbuild_file.outputPath, longbuild_contents = textDecoder2.decode(longbuild_file.contents), import_entities = await buildCtx.longBuildController.parseLongBuildFileContent(longbuild_contents);
   for (let [importer_resolved_path, entities_to_import] of import_entities) {
     importer_resolved_path = importer_resolved_path.toLowerCase();
-    const entities_using_importer_as_input_source = metafile.findFileFromSources((input_sources) => {
+    const entities_using_importer_as_input_source = metafile.findFilesFromSources((input_sources) => {
       const entity_uses_importer_as_source = input_sources.some(({ path, namespace }) => {
         return (namespace + ":" + path).toLowerCase() === importer_resolved_path;
       });
@@ -1324,7 +1334,7 @@ var incorporateLongBuildImportedEntities = async (ctx, longbuild_file) => {
       warnings.push({ text: `[incorporateLongBuildImportedEntities]: we usually expect only a single output file to be made out of the given input source: "${importer_resolved_path}".` });
     }
     const imported_entity_nodes = entities_to_import.map((import_entity) => {
-      const { key, path, with: with_attr = {}, external = false } = import_entity, kind = "user-import", entity = external ? { externalPath: path } : metafile.getFile(resolvePath(longbuild_path, path));
+      const { key, path, with: with_attr = {}, external = false } = import_entity, kind = "user-import", entity = external ? { externalPath: path } : metafile.getFile(buildCtx.resolvePath(longbuild_path, path));
       return { key, kind, with: with_attr, external, entity };
     });
     for (const file_entity of entities_using_importer_as_input_source) {
@@ -2000,6 +2010,15 @@ var SuperPluginBuild = class {
     const { filter, inputs, importedBy } = options;
     this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, inputs, importedBy, callback });
   }
+  /** a path resolver function that joins `path_segments` wherever they're relative,
+   * and resolves with respect to the current working directory (`cwd`) or the esbuild-provided `absWorkingDir`.
+   *
+   * unlike the {@link resolve} method, this method does not involve any `onResolve` handlers assigned to esbuild,
+   * and it only uses basic relative path and absolute path resolution for the computation, and nothing more.
+  */
+  resolvePath(...path_segments) {
+    return this.ctx.resolvePath(...path_segments);
+  }
   /** re-route the statically analyzable relative imports of an emitted js or css file's contents.
    * this process is akin to either moving/renaming the base emitted file to a different directory,
    * and/or individually renaming the import paths of a select number of dependency files.
@@ -2113,6 +2132,10 @@ var SuperBuildContext = class {
   shouldOverwrite = false;
   /** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
   log;
+  /** a path resolver function that joins `path_segments` wherever they're relative.
+   * this is intended to be used exclusively by the {@link resolvePath} method, and not by other external things.
+  */
+  resolve_path;
   constructor(options) {
     options = this.initFields(options);
     const format = options.format;
@@ -2140,6 +2163,8 @@ var SuperBuildContext = class {
     this.genericLoader = object_fromEntries(object_entries(loader).filter(([ext, loader_type]) => {
       return !allEsbuildLoaders.includes(loader_type);
     }));
+    const abs_working_dir = pathToPosixPath(options.absWorkingDir ?? "./"), runtime_cwd = ensureEndSlash(getRuntimeCwd(identifyCurrentRuntime())), cwd = fileUrlToLocalPath(resolveAsUrl(abs_working_dir, runtime_cwd)), resolve_path = resolvePathFactory(cwd);
+    this.resolve_path = resolve_path;
     return { loader, ...esbuild_options };
   }
   processOptions(options) {
@@ -2203,9 +2228,9 @@ var SuperBuildContext = class {
   /** creates the the metafile object from esbuild's {@link EsbuildBuildResult},
    * and registers all output files onto it for the {@link emissionsDriverPlugin} to initiate the next step (`onEmit` stage).
   */
-  createMetafile(result, config) {
+  createMetafile(result) {
     const metafile = new Metafile(result.metafile, {
-      resolvePath: config.resolvePath,
+      resolvePath: this.resolve_path,
       resolvedResourceRegistry: this.resolvedResourceRegistry
     });
     for (const esbuild_file of result.outputFiles) {
@@ -2213,6 +2238,12 @@ var SuperBuildContext = class {
     }
     metafile.scanEsbuildImports();
     return metafile;
+  }
+  /** a path resolver function that joins `path_segments` wherever they're relative,
+   * and resolves with respect to the current working directory (`cwd`) or the esbuild-provided `absWorkingDir`.
+  */
+  resolvePath(...path_segments) {
+    return this.resolve_path(...path_segments);
   }
   /** concludes the build after the all registered {@link onEmitHandlers} and {@link onEndHandlers}
    * have been executed by the {@link emissionsDriverPlugin} when it enters its `onEnd` stage (registered to the "true" `build` object).

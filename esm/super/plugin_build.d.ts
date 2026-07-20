@@ -39,6 +39,13 @@ export declare class SuperPluginBuild implements Omit<EsbuildPluginBuild, "esbui
     onTransform(options: OnTransformOptions, callback: OnTransformCallback): void;
     /** TODO: add documentation and usage examples. */
     onEmit(options: OnEmitOptions, callback: OnEmitCallback): void;
+    /** a path resolver function that joins `path_segments` wherever they're relative,
+     * and resolves with respect to the current working directory (`cwd`) or the esbuild-provided `absWorkingDir`.
+     *
+     * unlike the {@link resolve} method, this method does not involve any `onResolve` handlers assigned to esbuild,
+     * and it only uses basic relative path and absolute path resolution for the computation, and nothing more.
+    */
+    resolvePath(...path_segments: string[]): string;
     /** re-route the statically analyzable relative imports of an emitted js or css file's contents.
      * this process is akin to either moving/renaming the base emitted file to a different directory,
      * and/or individually renaming the import paths of a select number of dependency files.

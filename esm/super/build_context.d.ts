@@ -5,7 +5,7 @@
  *
  * @module
 */
-import { Metafile, type MetafileConfig } from "../esbuild/metafile.js";
+import { Metafile } from "../esbuild/metafile.js";
 import type { EsbuildBuildOptions, EsbuildBuildResult, EsbuildOnEndCallback } from "../esbuild/strongtypes.js";
 import { LongBuildController } from "../plugins/long_build.js";
 import type { LoggerFunction, NamespacedPath } from "../typedefs.js";
@@ -59,6 +59,10 @@ export declare class SuperBuildContext {
     shouldOverwrite: boolean;
     /** a logging function for internal debugging. it gets called only when {@link DEBUG.LOG} is enabled. */
     log: LoggerFunction;
+    /** a path resolver function that joins `path_segments` wherever they're relative.
+     * this is intended to be used exclusively by the {@link resolvePath} method, and not by other external things.
+    */
+    private resolve_path;
     constructor(options: SuperBuildOptions);
     getBuildOptions(): EsbuildBuildOptions;
     protected initFields(options: SuperBuildOptions): SuperBuildOptions;
@@ -81,7 +85,11 @@ export declare class SuperBuildContext {
     /** creates the the metafile object from esbuild's {@link EsbuildBuildResult},
      * and registers all output files onto it for the {@link emissionsDriverPlugin} to initiate the next step (`onEmit` stage).
     */
-    createMetafile(result: EsbuildBuildResult, config: Pick<MetafileConfig, "resolvePath">): Metafile;
+    createMetafile(result: EsbuildBuildResult): Metafile;
+    /** a path resolver function that joins `path_segments` wherever they're relative,
+     * and resolves with respect to the current working directory (`cwd`) or the esbuild-provided `absWorkingDir`.
+    */
+    resolvePath(...path_segments: string[]): string;
     /** concludes the build after the all registered {@link onEmitHandlers} and {@link onEndHandlers}
      * have been executed by the {@link emissionsDriverPlugin} when it enters its `onEnd` stage (registered to the "true" `build` object).
      *

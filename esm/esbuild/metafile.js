@@ -102,7 +102,7 @@ export class Metafile {
         this.warnings.push({ text: `[Metafile.getFile]: no file entity with the following path key was ever added: "${output_path_key}".` });
     }
     /** find all file entities that incorporate (i.e. originate from) certain namespaced source files/resources into their bundled form. */
-    findFileFromSources(predicate_fn) {
+    findFilesFromSources(predicate_fn) {
         const file_entity_matches = [];
         this.outputFileEntities.forEach((file_entity) => {
             const file_sources = file_entity.inputs.map(({ namespace, path }) => ({ namespace, path }));
@@ -282,3 +282,16 @@ const format_resolved_resource_registry = (registry) => {
     }
     return { result: registry_lowercase, warnings };
 };
+/** a reduced implementation of {@link Metafile} that is safer for consumer-use. */
+export class ReducedMetafile {
+    metafile;
+    constructor(metafile) {
+        this.metafile = metafile;
+    }
+    getFile(output_path_key) {
+        return this.metafile.getFile(output_path_key);
+    }
+    findFilesFromSources(predicate_fn) {
+        return this.metafile.findFilesFromSources(predicate_fn);
+    }
+}

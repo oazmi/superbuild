@@ -4,6 +4,7 @@
  * @module
 */
 import { array_isEmpty, isNull, isString, relativePath, textEncoder } from "../deps.js";
+import { ReducedMetafile } from "./metafile.js";
 export class OutputFileEntity {
     /** the **absolute** output path of this resource entity. */
     outputPath;
@@ -173,7 +174,7 @@ export class OutputFileEntity {
             const { key, kind, external, entity, with: with_attr } = imported_entity_node, is_external_entity = "externalPath" in entity, outputPath = is_external_entity ? entity.externalPath : entity.outputPath, initialPath = is_external_entity ? undefined : entity.initialPath, write = is_external_entity ? false : entity.write;
             return { key, outputPath, initialPath, kind, external, with: with_attr, write };
         });
-        const metafile = this.metafile, importer_paths = [...this.importedBy].map((entity) => { return entity.initialPath ?? entity.outputPath; }), output_file_registry = metafile.getFile.bind(metafile);
+        const metafile = this.metafile, importer_paths = [...this.importedBy].map((entity) => { return entity.initialPath ?? entity.outputPath; }), output_file_registry = new ReducedMetafile(metafile);
         const warnings = [], errors = [];
         let prior_on_emit_result = undefined, prior_re_emit_data = undefined;
         // this loop keeps performing "on-emit" actions, until either the resulting `reEmit` option is not `true`,
@@ -211,6 +212,7 @@ export class OutputFileEntity {
             const on_emit_result = await handler.callback({
                 outputPath: this.outputPath,
                 contents: this.contents,
+                write: this.write,
                 inputs: this.inputs,
                 imports: imported_entities,
                 importedBy: importer_paths,
