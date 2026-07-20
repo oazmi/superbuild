@@ -682,6 +682,8 @@ var OutputFileEntity = class {
    * or user-import (i.e. {@link OnTransformResult.imports}) statement.
   */
   imports = [];
+  /** a set of emitted output entities that import _this_ file entity during runtime. */
+  importedBy = /* @__PURE__ */ new Set();
   metafile;
   constructor(metafile, esbuild_file) {
     this.metafile = metafile;
@@ -760,9 +762,19 @@ var OutputFileEntity = class {
     }
     return imported_entities;
   }
+  /** broadcast _this_ entity to its {@link imports}, so that it (_this_ object) gets registered to their (the import's) {@link importedBy} list. */
+  broadcastImporter() {
+    for (const { entity } of this.imports) {
+      const is_external_entity = "externalPath" in entity;
+      if (is_external_entity) {
+        continue;
+      }
+      entity.importedBy.add(this);
+    }
+  }
   /** test if an `onEmit` handler's filters apply to _this_ output file entity. */
   matchOnEmitFilter(options) {
-    const { filter, inputs: input_filters } = options, output_path = this.outputPath;
+    const { filter, inputs: input_filters, importedBy: imported_by_filters = [] } = options, output_path = this.outputPath;
     if (!filter.test(output_path)) {
       return false;
     }
@@ -776,6 +788,15 @@ var OutputFileEntity = class {
         return false;
       }
     }
+    const all_importers = [...this.importedBy];
+    for (const imported_by_filter of imported_by_filters) {
+      const at_least_one_importer_satisfies_conditions = all_importers.some((importer_entity) => {
+        return importer_entity.matchOnEmitFilter(imported_by_filter);
+      });
+      if (!at_least_one_importer_satisfies_conditions) {
+        return false;
+      }
+    }
     return true;
   }
   /** perform `onEmit` action on _this_ output file entity, based on the provided `onEmit` handlers. */
@@ -784,6 +805,31 @@ var OutputFileEntity = class {
       const { key, kind, external, entity, with: with_attr } = imported_entity_node, is_external_entity = "externalPath" in entity, outputPath = is_external_entity ? entity.externalPath : entity.outputPath, initialPath = is_external_entity ? void 0 : entity.initialPath, write = is_external_entity ? false : entity.write;
       return { key, outputPath, initialPath, kind, external, with: with_attr, write };
     });
+    const metafile = this.metafile, importer_paths = [...this.importedBy].map((entity) => {
+      return entity.initialPath ?? entity.outputPath;
+    }), output_file_registry = metafile.getFile.bind(metafile);
+    const warnings = [], errors = [];
+    let prior_on_emit_result = void 0, prior_re_emit_data = void 0;
+    while (true) {
+      const on_emit_result = await this.performOnEmitOnce(on_emit_handlers, imported_entities, importer_paths, output_file_registry, prior_re_emit_data);
+      if (isNull(on_emit_result)) {
+        break;
+      }
+      prior_re_emit_data = on_emit_result.reEmitData ?? prior_re_emit_data;
+      prior_on_emit_result = on_emit_result;
+      warnings.push(...on_emit_result.warnings ?? []);
+      errors.push(...on_emit_result.errors ?? []);
+      if (errors.length > 0) {
+        break;
+      }
+      if (!(on_emit_result.reEmit ?? false)) {
+        break;
+      }
+    }
+    return { ...prior_on_emit_result, warnings, errors };
+  }
+  /** performs a single `onEmit` action on _this_ output file entity, without performing any kind of re-emission. */
+  async performOnEmitOnce(on_emit_handlers, imported_entities, importer_paths, output_file_registry, reEmitData) {
     for (const handler of on_emit_handlers) {
       if (!this.matchOnEmitFilter(handler)) {
         continue;
@@ -792,8 +838,10 @@ var OutputFileEntity = class {
         outputPath: this.outputPath,
         contents: this.contents,
         inputs: this.inputs,
-        imports: imported_entities
-      });
+        imports: imported_entities,
+        importedBy: importer_paths,
+        reEmitData
+      }, output_file_registry);
       if (isNull(on_emit_result)) {
         continue;
       }
@@ -819,6 +867,7 @@ var OutputFileEntity = class {
       });
       return on_emit_result;
     }
+    return void 0;
   }
   /** rename this file. you can either provide an absolute path, or a relative path.
    * relative paths will be resolved with respect to the `cwd` or esbuild's `absWorkingDir`.
@@ -923,6 +972,15 @@ var Metafile = class _Metafile {
   scanEsbuildImports() {
     this.outputFileEntities.forEach((file_entity) => {
       file_entity.scanEsbuildImports();
+    });
+  }
+  /** broadcast each importer entity to its import entity's {@link OutputFileEntity.importedBy} set.
+   * this action should be performed _after_ **all** imports have been added to each output file entity.
+   * i.e. it should be called after `incorporateLongBuildImportedEntities` is called inside the emissions driver plugin.
+  */
+  scanImporters() {
+    this.outputFileEntities.forEach((file_entity) => {
+      file_entity.broadcastImporter();
     });
   }
   /** find the file entity corresponding to the given absolute output path. you won't receive entities associated with external paths/references. */
@@ -1156,6 +1214,7 @@ var emissionsDriverPluginSetup = (config) => {
         return { warnings: ctx2.warnings, errors: ctx2.errors };
       }
       await incorporateLongBuildImportedEntities(ctx2, longbuild_file);
+      metafile.scanImporters();
       const files_dependency_graph = metafile.createFileDependencyGraph(), dependency_graph = DependencyGraphNode.fromGraph(files_dependency_graph), source_resource_nodes = DependencyGraphNode.chainNodePromises(dependency_graph), all_node_promises = Promise.all([...dependency_graph.values()].map((node) => node.promise)), on_emit_callback = async (node, dependency_results) => {
         const entity = node.key, on_emit_result = await entity.performOnEmit(onEmitHandlers);
         if ((on_emit_result?.errors?.length ?? 0) > 0) {
@@ -1777,7 +1836,8 @@ var importsRerouterPluginSetup = (config) => {
       const { path } = args, is_relative = isRelativePath(path), abs_path = is_relative ? joinPaths(initialPath, path) : path, path_key = normalize_abs_path(abs_path), imported_entity = imports_map.get(path_key);
       if (isNull(imported_entity)) {
         const warning_text = `[importsRerouterPlugin]: expected the following import entity to be part of the provided list of imports: "${path_key}".`;
-        return { path, external: true, warnings: [{ location: { file: initialPath }, text: warning_text }] };
+        const updated_import_path = is_relative && !isNull(outputPath) ? relativePath(outputPath, abs_path) : path;
+        return { path: updated_import_path, external: true, warnings: [{ location: { file: initialPath }, text: warning_text }] };
       }
       const new_path = isNull(imported_entity.initialPath) ? abs_path : imported_entity.outputPath;
       if (imported_entity.external) {
@@ -1937,8 +1997,8 @@ var SuperPluginBuild = class {
   }
   /** TODO: add documentation and usage examples. */
   onEmit(options, callback) {
-    const { filter, inputs } = options;
-    this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, inputs, callback });
+    const { filter, inputs, importedBy } = options;
+    this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, inputs, importedBy, callback });
   }
   /** re-route the statically analyzable relative imports of an emitted js or css file's contents.
    * this process is akin to either moving/renaming the base emitted file to a different directory,

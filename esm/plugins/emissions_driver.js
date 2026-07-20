@@ -46,6 +46,7 @@ export const emissionsDriverPluginSetup = (config) => {
                 return { warnings: ctx.warnings, errors: ctx.errors };
             }
             await incorporateLongBuildImportedEntities(ctx, longbuild_file);
+            metafile.scanImporters(); // register all importers to each import's `importedBy` set.
             const files_dependency_graph = metafile.createFileDependencyGraph(), dependency_graph = DependencyGraphNode.fromGraph(files_dependency_graph), source_resource_nodes = DependencyGraphNode.chainNodePromises(dependency_graph), all_node_promises = Promise.all([...dependency_graph.values()].map((node) => (node.promise))), on_emit_callback = async (node, dependency_results) => {
                 const entity = node.key, on_emit_result = await entity.performOnEmit(onEmitHandlers);
                 // if any error is encountered in the user's `onEmit` hook function's return value,

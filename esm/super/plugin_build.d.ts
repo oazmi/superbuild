@@ -63,6 +63,8 @@ export declare class SuperPluginBuild implements Omit<EsbuildPluginBuild, "esbui
      * > for that, you will have to use the returned value of this method as the returned value for your resource's
      * > {@link onEmit} hook's callback function.
     */
-    rerouteImports(on_emit_args: Require<Partial<OnEmitArgs>, "contents" | "outputPath">, loader: EsbuildLoaderType & ("js" | "css"), updated_output_path?: string): Promise<Pick<OnEmitResult, "contents" | "path" | "warnings" | "errors">>;
+    rerouteImports(on_emit_args: Require<Partial<OnEmitArgs>, "contents" | "outputPath">, loader: EsbuildLoaderType & ("js" | "css"), updated_output_path?: string): Promise<Pick<OnEmitResult, "contents" | "path" | "warnings" | "errors"> & {
+        contents: Uint8Array<ArrayBuffer>;
+    }>;
 }
 //# sourceMappingURL=plugin_build.d.ts.map

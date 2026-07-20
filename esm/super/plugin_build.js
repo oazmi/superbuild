@@ -200,8 +200,8 @@ export class SuperPluginBuild {
     }
     /** TODO: add documentation and usage examples. */
     onEmit(options, callback) {
-        const { filter, inputs } = options;
-        this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, inputs, callback });
+        const { filter, inputs, importedBy } = options;
+        this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, inputs, importedBy, callback });
     }
     /** re-route the statically analyzable relative imports of an emitted js or css file's contents.
      * this process is akin to either moving/renaming the base emitted file to a different directory,

@@ -4,6 +4,8 @@
 */
 
 import type { AutoSuggestOrString, MaybePromiseOrNull } from "../deps.js"
+import type { Metafile } from "../esbuild/metafile.js"
+import type { OutputFileEntity } from "../esbuild/outputfile.js"
 import type {
 	EsbuildLoaderType,
 	EsbuildMetafileImportProps,
@@ -308,7 +310,12 @@ export interface OnEmitOptions_InputFilter {
 }
 
 export interface OnEmitOptions {
-	/** a filter for the {@link OnEmitArgs.outputPath | output filename} of a file that is to be emitted. */
+	/** a filter for the {@link OnEmitArgs.outputPath | output filename} of a file that is to be emitted.
+	 *
+	 * > [!note]
+	 * > when a resource is {@link OnEmitResult.reEmit | re-emitted} with an updated {@link OnEmitResult.path},
+	 * > this filter will test against the updated {@link OnEmitResult.path}, rather than the original/initial output path.
+	*/
 	filter: RegExp
 
 	/** a filter for specifying which input resources should be part of what constitutes this output file.
@@ -328,8 +335,41 @@ export interface OnEmitOptions {
 	*/
 	inputs?: Array<OnEmitOptions_InputFilter>
 
+	/** a filter to recursively describe _what_ your emitted resource is getting imported _by_.
+	 * in essence, this filter lets you perform a look ahead, before you miss intercepting an emitted output,
+	 * and only realize after the fact, once you reach a certain dependent file
+	 * (and consequently being prohibited from modifying the contents or output path of the dependency file).
+	 *
+	 * if you provide multiple filters inside, then it will act as an **AND** clause; meaning that:
+	 * - at least one of the importers of this entity should satisfy the `importedBy[0]` filter,
+	 * - **AND** at least one of the importers of this entity should satisfy the `importedBy[1]` filter,
+	 * - **AND** at least one of the importers of this entity should satisfy the `importedBy[2]` filter,
+	 * - **AND** so on and so forth.
+	 *
+	 * @example
+	 *
+	 * if you want to intercept all emitted js-files that _are being_
+	 * dynamically imported _by_ files that originated from an input that used an `"html"` loader,
+	 * then you would declare your filter as such:
+	 *
+	 * ```ts
+	 * my_js_filter: OnEmitOptions = {
+	 * 	filter: new RegExp("\\.js$"),
+	 * 	importedBy: [{
+	 * 		filter: new RegExp(".*"),
+	 * 		inputs: [{ filter: new RegExp(".*"), loader: "html" }],
+	 * 	}],
+	 * }
+	 * ```
+	*/
+	importedBy?: Array<OnEmitOptions>
+
 	// TODO: should I also add an `imports` filter as an option here? I think it'll be useful under certain cases,
 	// although it won't provide anything that cannot already be achieved by capturing all emitted resources and then checking if an import is found.
+	// UPDATE: I think it's not a good idea after the introduction of `importedBy`,
+	// because it's possible for an infinite loop to occur if an entity `A` checks for `B` being imported,
+	// but then `B` checks if it is being imported by `A`, and so on and so forth.
+	// (unless we keep track of all entities that have already been visited, similar to my topological sorting in tsignal.)
 }
 
 /** a description of an input file that was bundled into a physical output file ({@link OnEmitArgs}). */
@@ -377,8 +417,18 @@ export interface OnEmitArgs {
 	*/
 	imports: Array<ImportedEntity>
 
+	/** a list of output files paths that import this resource entity. these reflect the importer resource's {@link outputPath}. */
+	importedBy: Array<AbsolutePath>
+
 	/** the transformed and/or bundled content that may need to have the linked {@link imports} re-incorporated into it. */
 	contents: Uint8Array<ArrayBuffer>
+
+	/** if this resource has been re-emitted by a prior `onEmit` handler,
+	 * then it is possible for that handler to have inserted some kind of additional contextual information into this record field.
+	 *
+	 * read more about it in {@link OnEmitResult.reEmitData}.
+	*/
+	reEmitData?: OnEmitResult["reEmitData"]
 }
 
 export interface OnEmitResult extends EsbuildOnEndResult {
@@ -415,6 +465,35 @@ export interface OnEmitResult extends EsbuildOnEndResult {
 	 * @defaultValue `true` (i.e. it'll be written if `EsbuildBuildOption.write` is enabled, otherwise it won't be.)
 	*/
 	write?: boolean
+
+	/** declare if this resource is supposed to be re-emitted and passed through all registered `onEmit` handlers again from the beginning.
+	 * this effectively lets you process a single emitted output entity through multiple `onEmit` handlers.
+	 *
+	 * > [!note]
+	 * > in order to stop the current handler from intercepting and processing your re-emitted entity again,
+	 * > you should insert some kind of identifiable mark/symbol into the returned {@link reEmitData} field.
+	 * >
+	 * > it is similar to how I often insert a known unique symbol into `build.resolve`'s `pluginData`,
+	 * > in order to identify if I've already encountered and processed a resource,
+	 * > so that I can skip it and let other `onResolve` hooks to handle it.
+	 *
+	 * @defaultValue `false`.
+	*/
+	reEmit?: boolean
+
+	/** If you are {@link reEmit | re-emitting} an output entity (so that it gets processed by other registered `onEmit` hooks after being mutated),
+	 * then the next `onEmit` interceptor of this entity will receive this arbitrary record/dictionary in its {@link OnEmitArgs.reEmitData} field.
+	 *
+	 * this provides an effective means for inter-on-emit hook communication, akin to `pluginData` used in `onResolve` and `onLoad`.
+	 * it also provides a way for you to stop the current output entity from being processed by your current `onEmit` hook again,
+	 * by inserting a unique symbol into the `reEmitData` record, which, if discovered, will indicated that a given resource has already gone through the current handler.
+	 *
+	 * when this field is set to `undefined`, it will adopt/inherit its prior `reEmitData` declared under {@link OnEmitArgs.reEmitData}.
+	 * in order to clear out this field properly, one must assign a new empty object to it.
+	 *
+	 * @defaultValue `undefined`, which in turn signals that it should inherit/propagate its prior `reEmitData` (i.e. {@link OnEmitArgs.reEmitData}).
+	*/
+	reEmitData?: Record<PropertyKey, any>
 }
 
 /** this is your `onEmit` hook function that gets called,
@@ -423,5 +502,14 @@ export interface OnEmitResult extends EsbuildOnEndResult {
  * if your return value is nullable (`null` or `undefined`), then the next matching `onEmit` hook function will try to mutate the finalized loaded/transformed contents.
  * if no emit hook returns a non-nullable after all matches have been made,
  * then the transformed contents from the `onTransform` hook will be passed to esbuild as is.
+ *
+ * moreover, if the returned value declares {@link OnEmitResult.reEmit} as `true`,
+ * then the mutated emitted resource will once again pass through **all** registered `onEmit` handlers.
+ *
+ * @param args the description of the emitted file that is currently being processed/mutated by your callback function.
+ * @param output_file_registry this is a function that returns the underlying {@link OutputFileEntity}
+ *   associated with a given resource's initial output path key. the path key can be simply computed as `initialPath ?? outputPath` for a given resource.
+ *   the returned {@link OutputFileEntity} instance is strictly for read only purposes. do not even think of modifying it, otherwise bad things will happen.
+ *   (i.e. sanata clause will die out of a heart attack, and L will get obliterated by truck-kun on the very first day he meats yagami.)
 */
-export type OnEmitCallback = (args: OnEmitArgs) => MaybePromiseOrNull<OnEmitResult>
+export type OnEmitCallback = (args: OnEmitArgs, output_file_registry: Metafile["getFile"]) => MaybePromiseOrNull<OnEmitResult>

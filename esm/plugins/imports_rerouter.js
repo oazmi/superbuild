@@ -31,11 +31,10 @@ export const importsRerouterPluginSetup = (config) => {
             if (isNull(imported_entity)) {
                 // we expect all imported entities to get reported by `imports_map`.
                 // if we see some resource that is not registered in there, then we better throw a warning.
-                // TODO: suppose that the resource was not reported by `imports_map`, but it is however a relative link.
-                // shouldn't I at least re-route the returned path with respect to any updated new `outputPath` of the entry-point?
-                // currently I'm not doing so, but I'll consider doing it if I begin encountering errors/warnings in the future spawning from this inconsideration.
                 const warning_text = `[importsRerouterPlugin]: expected the following import entity to be part of the provided list of imports: "${path_key}".`;
-                return { path, external: true, warnings: [{ location: { file: initialPath }, text: warning_text }] };
+                // if the `path` was a relative link, the least we can do is update its path if the entry-point entity itself is being migrated.
+                const updated_import_path = (is_relative && !isNull(outputPath)) ? relativePath(outputPath, abs_path) : path;
+                return { path: updated_import_path, external: true, warnings: [{ location: { file: initialPath }, text: warning_text }] };
             }
             // if the imported entity itself was migrated, then we'll need to update the import path associated with it.
             const new_path = isNull(imported_entity.initialPath)

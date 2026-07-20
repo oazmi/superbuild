@@ -50,6 +50,8 @@ export declare class OutputFileEntity implements Require<Pick<EsbuildOutputFile,
      * or user-import (i.e. {@link OnTransformResult.imports}) statement.
     */
     imports: Readonly<ImportedEntityNode<any>>[];
+    /** a set of emitted output entities that import _this_ file entity during runtime. */
+    importedBy: Set<OutputFileEntity>;
     protected metafile: Metafile;
     constructor(metafile: Metafile, esbuild_file: EsbuildOutputFile);
     /** scans esbuild's metafile outputs to find the input sources bundled into this output file.
@@ -67,10 +69,14 @@ export declare class OutputFileEntity implements Require<Pick<EsbuildOutputFile,
      * > because the imports need to reference the {@link OutputFileEntity} associated with the imported file.
     */
     scanEsbuildImports(): typeof this.imports;
+    /** broadcast _this_ entity to its {@link imports}, so that it (_this_ object) gets registered to their (the import's) {@link importedBy} list. */
+    broadcastImporter(): void;
     /** test if an `onEmit` handler's filters apply to _this_ output file entity. */
     protected matchOnEmitFilter(options: OnEmitOptions): boolean;
     /** perform `onEmit` action on _this_ output file entity, based on the provided `onEmit` handlers. */
     performOnEmit(on_emit_handlers: Array<OnEmitHandler>): Promise<OnEmitResult | undefined>;
+    /** performs a single `onEmit` action on _this_ output file entity, without performing any kind of re-emission. */
+    private performOnEmitOnce;
     /** rename this file. you can either provide an absolute path, or a relative path.
      * relative paths will be resolved with respect to the `cwd` or esbuild's `absWorkingDir`.
     */

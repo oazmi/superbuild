@@ -46,6 +46,11 @@ export declare class Metafile implements MetafileConfig {
      * so that they can discover the file entity associated which each of their esbuild-based imports.
     */
     scanEsbuildImports(): void;
+    /** broadcast each importer entity to its import entity's {@link OutputFileEntity.importedBy} set.
+     * this action should be performed _after_ **all** imports have been added to each output file entity.
+     * i.e. it should be called after `incorporateLongBuildImportedEntities` is called inside the emissions driver plugin.
+    */
+    scanImporters(): void;
     /** find the file entity corresponding to the given absolute output path. you won't receive entities associated with external paths/references. */
     getFile(output_path_key: string): OutputFileEntity | undefined;
     /** find all file entities that incorporate (i.e. originate from) certain namespaced source files/resources into their bundled form. */

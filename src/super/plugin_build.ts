@@ -270,8 +270,8 @@ export class SuperPluginBuild implements Omit<EsbuildPluginBuild, "esbuild"> {
 
 	/** TODO: add documentation and usage examples. */
 	public onEmit(options: OnEmitOptions, callback: OnEmitCallback): void {
-		const { filter, inputs } = options
-		this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, inputs, callback })
+		const { filter, inputs, importedBy } = options
+		this.ctx.onEmitHandlers.push({ pluginName: this.pluginName, filter, inputs, importedBy, callback })
 	}
 
 	/** re-route the statically analyzable relative imports of an emitted js or css file's contents.
@@ -302,7 +302,7 @@ export class SuperPluginBuild implements Omit<EsbuildPluginBuild, "esbuild"> {
 		on_emit_args: Require<Partial<OnEmitArgs>, "contents" | "outputPath">,
 		loader: EsbuildLoaderType & ("js" | "css"),
 		updated_output_path?: string,
-	): Promise<Pick<OnEmitResult, "contents" | "path" | "warnings" | "errors">> {
+	): Promise<Pick<OnEmitResult, "contents" | "path" | "warnings" | "errors"> & { contents: Uint8Array<ArrayBuffer> }> {
 		const
 			{ outputPath: initialPath, contents, imports = [] } = on_emit_args,
 			output_dir = pathToPosixPath(parseFilepathInfo(initialPath).dirpath),

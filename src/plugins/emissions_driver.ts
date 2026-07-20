@@ -69,6 +69,7 @@ export const emissionsDriverPluginSetup = (config: EmissionsDriverPluginSetupCon
 			const longbuild_file = findLongBuildFile(ctx)
 			if (isNull(longbuild_file)) { return { warnings: ctx.warnings, errors: ctx.errors } }
 			await incorporateLongBuildImportedEntities(ctx, longbuild_file)
+			metafile.scanImporters() // register all importers to each import's `importedBy` set.
 
 			// below, we create a parallel/branching chain of promises that is guaranteeded to resolve in topological ordering (import dependency wise),
 			// and then we fire the `onEmit` action on each source node (zero dependency output files) to ignite the reaction.

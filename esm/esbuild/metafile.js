@@ -83,6 +83,15 @@ export class Metafile {
             file_entity.scanEsbuildImports();
         });
     }
+    /** broadcast each importer entity to its import entity's {@link OutputFileEntity.importedBy} set.
+     * this action should be performed _after_ **all** imports have been added to each output file entity.
+     * i.e. it should be called after `incorporateLongBuildImportedEntities` is called inside the emissions driver plugin.
+    */
+    scanImporters() {
+        this.outputFileEntities.forEach((file_entity) => {
+            file_entity.broadcastImporter();
+        });
+    }
     /** find the file entity corresponding to the given absolute output path. you won't receive entities associated with external paths/references. */
     getFile(output_path_key) {
         output_path_key = output_path_key.toLowerCase();
