@@ -21,12 +21,12 @@
       I need to investigate them, remove them from the output files,
       and see how the import requester can be given back these bundled css files that have adopted the name of long-build's uuid.
 
-## pre-version `0.2.3` todo list
+## pre-version `0.2.4` todo list
 
 - [ ] in [`/readme.md`](./readme.md) include information on how to initialize a sub-build,
       and on how to access the underlying true `build.esbuild` object (rather than the overloaded version).
 
-## pre-version `0.2.2` todo list
+## pre-version `0.2.3` todo list
 
 - [ ] generalize/weaken the typing so that the library becomes compatible with any version of esbuild.
 - [ ] currently, if a resource does not resolve (i.e. fails to resolve), then the build process halts indefinitely,
@@ -48,7 +48,7 @@
       function is proving to be difficult in the html's `onEmit` stage,
       which comes _after_ the inlined scripts/styles have been processed by the `onEmit` stage.
       a forward lookahead mechanism would simplify my logic by a good amount.
-  > (202-07-19) DONE: added `type OnEmitOptions["importedBy"] = OnEmitOptions` without any omissions,
+  > (202-07-19) DONE: added `type OnEmitOptions["importedBy"] = Array<OnEmitOptions>` without any omissions,
   > as it was trivial to make it work recursively in our [`OutputFileEntity.matchOnEmitFilter`](./src/esbuild/outputfile.ts) method.
 
 ## (2026-07-18) pre-version `0.2.0` todo list

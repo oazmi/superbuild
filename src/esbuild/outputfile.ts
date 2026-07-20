@@ -65,6 +65,9 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 	*/
 	public imports: Readonly<ImportedEntityNode<any>>[] = []
 
+	/** a set of emitted output entities that import _this_ file entity during runtime. */
+	public importedBy: Set<OutputFileEntity> = new Set()
+
 	protected metafile: Metafile
 
 	constructor(metafile: Metafile, esbuild_file: EsbuildOutputFile) {
@@ -158,6 +161,15 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 		return imported_entities
 	}
 
+	/** broadcast _this_ entity to its {@link imports}, so that it (_this_ object) gets registered to their (the import's) {@link importedBy} list. */
+	public broadcastImporter() {
+		for (const { entity } of this.imports) {
+			const is_external_entity = "externalPath" in entity
+			if (is_external_entity) { continue }
+			entity.importedBy.add(this)
+		}
+	}
+
 	/** test if an `onEmit` handler's filters apply to _this_ output file entity. */
 	protected matchOnEmitFilter(options: OnEmitOptions): boolean {
 		const
@@ -183,19 +195,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 		}
 
 		// finally, we test if this output entity is being imported by a file that matches the desired `imported_by_filter`.
-		// TODO: this operation is not currently optimized, and its complexity is `O((N*M)^D)`,
-		// where `N` is the number of emitted files, `M` is the average number of imports per file,
-		// and `D` is the depth of the number of `importedBy` filters.
-		// the complexity can be easily be reduced to just `M*D` if I prepare an appropriate DAG; but that's for latter.
-		const all_importers = imported_by_filters.length <= 0 ? []
-			: [...this.metafile.outputFileEntities.values()].filter((entity) => {
-				const
-					dependencies = entity.imports,
-					// check if **this** entity is being imported by the given `entity`.
-					self_is_being_imported = dependencies.some((dep_node) => { return dep_node.entity === this })
-				return self_is_being_imported
-			})
-
+		const all_importers = [...this.importedBy]
 		for (const imported_by_filter of imported_by_filters) {
 			// for each "imported-by" filter, we'll test if at least one of the importer entities satisfy the condition.
 			const at_least_one_importer_satisfies_conditions = all_importers.some((importer_entity) => {

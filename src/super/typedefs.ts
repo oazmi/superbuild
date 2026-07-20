@@ -357,10 +357,12 @@ export interface OnEmitOptions {
 	*/
 	importedBy?: Array<OnEmitOptions>
 
-	imports?: Array<OnEmitOptions>
-
 	// TODO: should I also add an `imports` filter as an option here? I think it'll be useful under certain cases,
 	// although it won't provide anything that cannot already be achieved by capturing all emitted resources and then checking if an import is found.
+	// UPDATE: I think it's not a good idea after the introduction of `importedBy`,
+	// because it's possible for an infinite loop to occur if an entity `A` checks for `B` being imported,
+	// but then `B` checks if it is being imported by `A`, and so on and so forth.
+	// (unless we keep track of all entities that have already been visited, similar to my topological sorting in tsignal.)
 }
 
 /** a description of an input file that was bundled into a physical output file ({@link OnEmitArgs}). */
