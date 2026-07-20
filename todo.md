@@ -2,6 +2,11 @@
 
 ## bucket list
 
+- [ ] make it so that any update to a js or css dependencies' output path (see the `0.2.0 todo list`)
+      will reflect into the dependent script's content, by utilizing a sub-build and declaring all imports as external,
+      and renaming all updated relative imports accordingly.
+  > (2026-07-20) this capability was originally set for the `0.2.2 todo list`, but I've decided to delay it indefinitely.
+
 ## issues list
 
 ## pre-version `0.3.x` todo list
@@ -34,9 +39,17 @@
 
 ## pre-version `0.2.2` todo list
 
-- [ ] make it so that any update to a js or css dependencies' output path (see the `0.2.0 todo list`)
+- [ ] ~~make it so that any update to a js or css dependencies' output path (see the `0.2.0 todo list`)
       will reflect into the dependent script's content, by utilizing a sub-build and declaring all imports as external,
-      and renaming all updated relative imports accordingly.
+      and renaming all updated relative imports accordingly.~~
+  > (2026-07-20) TODO: I FEEL CONFLICTED: I feel like it's better to leave off this feature for some other time,
+  > now that the user can emulate this feature themselves with the introduction of `OnEmitResult.reEmit`
+  > and `SuperPluginBuild.rerouteImport`, with even more granular control.
+- [ ] update [`readme.md`](./readme.md) to boast the new features.
+- [x] make the second argument of `OnEmitCallback` (i.e. the `output_file_registry`) not only permit output file entity search,
+      but also enable searching by the input sources' resolved paths.
+  > (2026-07-20) DONE: added a [`ReducedMetafile`](./src/esbuild/metafile.ts) class that provides a subset of the `Metafile`'s features,
+  > and now it gets passed onto the second argument of the `OnEmitCallback`.
 
 ## (2026-07-20) pre-version `0.2.1` todo list
 

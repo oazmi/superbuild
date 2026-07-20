@@ -172,7 +172,7 @@ const findLongBuildFile = (ctx: EmissionDriverContext): OutputFileEntity | undef
 	const { longBuildController, metafile, errors } = ctx
 	const
 		longbuild_plugin_namespace = longBuildController.pluginNamespace,
-		longbuild_files = metafile.findFileFromSources((input_sources) => {
+		longbuild_files = metafile.findFilesFromSources((input_sources) => {
 			const does_include_longbuild_source_file = input_sources.some(({ path: _source_resolved_path, namespace }) => {
 				return namespace === longbuild_plugin_namespace
 			})
@@ -209,7 +209,7 @@ const incorporateLongBuildImportedEntities = async (
 		// our goal below is to first identify which output file entity(ies) originate from the `importer_resolved_path` source file,
 		// and then we shall inject the new (user made) imports into it/them (if there were multiple files using the same importer as their source file).
 		importer_resolved_path = importer_resolved_path.toLowerCase()
-		const entities_using_importer_as_input_source = metafile.findFileFromSources((input_sources) => {
+		const entities_using_importer_as_input_source = metafile.findFilesFromSources((input_sources) => {
 			const entity_uses_importer_as_source = input_sources.some(({ path, namespace }) => {
 				return (namespace + ":" + path).toLowerCase() === importer_resolved_path
 			})

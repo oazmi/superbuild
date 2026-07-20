@@ -148,7 +148,7 @@ export class Metafile implements MetafileConfig {
 	}
 
 	/** find all file entities that incorporate (i.e. originate from) certain namespaced source files/resources into their bundled form. */
-	public findFileFromSources(
+	public findFilesFromSources(
 		predicate_fn: (file_sources: Array<{ namespace: string, path: string }>) => boolean,
 	): Array<OutputFileEntity> {
 		const file_entity_matches: Array<OutputFileEntity> = []
@@ -366,4 +366,27 @@ const format_resolved_resource_registry = (registry: SuperBuildContext["resolved
 	}
 
 	return { result: registry_lowercase, warnings }
+}
+
+/** a reduced implementation of {@link Metafile} that is safer for consumer-use. */
+export class ReducedMetafile implements Pick<Metafile, "resolvePath" | "getFile" | "findFilesFromSources"> {
+	private metafile: Metafile
+
+	constructor(metafile: Metafile) {
+		this.metafile = metafile
+	}
+
+	public resolvePath(path: Path): AbsolutePath {
+		return this.metafile.resolvePath(path)
+	}
+
+	public getFile(output_path_key: string): OutputFileEntity | undefined {
+		return this.metafile.getFile(output_path_key)
+	}
+
+	public findFilesFromSources(
+		predicate_fn: (file_sources: Array<{ namespace: string; path: string }>) => boolean
+	): Array<OutputFileEntity> {
+		return this.metafile.findFilesFromSources(predicate_fn)
+	}
 }
