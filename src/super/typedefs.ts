@@ -4,6 +4,8 @@
 */
 
 import type { AutoSuggestOrString, MaybePromiseOrNull } from "../deps.ts"
+import type { Metafile } from "../esbuild/metafile.ts"
+import type { OutputFileEntity } from "../esbuild/outputfile.ts"
 import type {
 	EsbuildLoaderType,
 	EsbuildMetafileImportProps,
@@ -415,6 +417,9 @@ export interface OnEmitArgs {
 	*/
 	imports: Array<ImportedEntity>
 
+	/** a list of output files paths that import this resource entity. these reflect the importer resource's {@link outputPath}. */
+	importedBy: Array<AbsolutePath>
+
 	/** the transformed and/or bundled content that may need to have the linked {@link imports} re-incorporated into it. */
 	contents: Uint8Array<ArrayBuffer>
 
@@ -497,5 +502,14 @@ export interface OnEmitResult extends EsbuildOnEndResult {
  * if your return value is nullable (`null` or `undefined`), then the next matching `onEmit` hook function will try to mutate the finalized loaded/transformed contents.
  * if no emit hook returns a non-nullable after all matches have been made,
  * then the transformed contents from the `onTransform` hook will be passed to esbuild as is.
+ *
+ * moreover, if the returned value declares {@link OnEmitResult.reEmit} as `true`,
+ * then the mutated emitted resource will once again pass through **all** registered `onEmit` handlers.
+ *
+ * @param args the description of the emitted file that is currently being processed/mutated by your callback function.
+ * @param output_file_registry this is a function that returns the underlying {@link OutputFileEntity}
+ *   associated with a given resource's initial output path key. the path key can be simply computed as `initialPath ?? outputPath` for a given resource.
+ *   the returned {@link OutputFileEntity} instance is strictly for read only purposes. do not even think of modifying it, otherwise bad things will happen.
+ *   (i.e. sanata clause will die out of a heart attack, and L will get obliterated by truck-kun on the very first day he meats yagami.)
 */
-export type OnEmitCallback = (args: OnEmitArgs) => MaybePromiseOrNull<OnEmitResult>
+export type OnEmitCallback = (args: OnEmitArgs, output_file_registry: Metafile["getFile"]) => MaybePromiseOrNull<OnEmitResult>

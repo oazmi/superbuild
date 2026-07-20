@@ -224,6 +224,10 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 				write = is_external_entity ? false : entity.write
 			return { key, outputPath, initialPath, kind, external, with: with_attr, write }
 		})
+		const
+			metafile = this.metafile,
+			importer_paths = [...this.importedBy].map((entity) => { return entity.initialPath ?? entity.outputPath }),
+			output_file_registry = metafile.getFile.bind(metafile)
 
 		const
 			warnings: EsbuildPartialMessage[] = [],
@@ -235,7 +239,7 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 		// this loop keeps performing "on-emit" actions, until either the resulting `reEmit` option is not `true`,
 		// or if an error cropped up, or if no "onEmit" hook intercepted this resource at all.
 		while (true) {
-			const on_emit_result = await this.performOnEmitOnce(on_emit_handlers, imported_entities, prior_re_emit_data)
+			const on_emit_result = await this.performOnEmitOnce(on_emit_handlers, imported_entities, importer_paths, output_file_registry, prior_re_emit_data)
 			// if no hook acted upon this resource, then it is time to exit.
 			if (isNull(on_emit_result)) { break }
 			// update the re-emit data if it was defined by the result.
@@ -256,6 +260,8 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 	private async performOnEmitOnce(
 		on_emit_handlers: Array<OnEmitHandler>,
 		imported_entities: ImportedEntity[],
+		importer_paths: AbsolutePath[],
+		output_file_registry: Metafile["getFile"],
 		reEmitData?: OnEmitResult["reEmitData"],
 	): Promise<OnEmitResult | undefined> {
 		// attempt at matching the output file with all available `onEmit` hooks' filters,
@@ -267,8 +273,9 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 				contents: this.contents,
 				inputs: this.inputs,
 				imports: imported_entities,
+				importedBy: importer_paths,
 				reEmitData: reEmitData,
-			})
+			}, output_file_registry)
 			if (isNull(on_emit_result)) { continue }
 
 			// updating the emitted file `path` and `contents` from the `result`.

@@ -38,13 +38,16 @@
       will reflect into the dependent script's content, by utilizing a sub-build and declaring all imports as external,
       and renaming all updated relative imports accordingly.
 
-## pre-version `0.2.1` todo list
+## (2026-07-20) pre-version `0.2.1` todo list
 
-- [ ] make the `OnEmitCallback` function receive a second argument that would allow the user to pull any `OutputFileEntity`
+- [x] make the `OnEmitCallback` function receive a second argument that would allow the user to pull any `OutputFileEntity`
       from the `metafile`'s `outputFileEntities` registry.
       it's kind of risky (if the user improperly modifies the output path or the `imports` field),
       but also super convenient for reading the contents of all available output files.
-- [ ] I think it would be a good idea to permit `OnEmitArgs` to also include a readonly `importedBy: Array<OutputFileEntity>` field.
+  > (2026-07-20) DONE: we now pass the `Metafile.getFile` method to the `OnEmitCallback` inside
+  > [`OutputFileEntity.performOnEmitOnce`](./src/esbuild/outputfile.ts).
+- [x] I think it would be a good idea to permit `OnEmitArgs` to also include a `importedBy: Array<AbsolutePath>` field,
+      that dictates the absolute path-key of all importers of the given output resource.
 - [x] add the ability to re-emit output entities that have been processed via an `onEmit` hook,
       by declaring an optional `OnEmitResult.reEmit` field to `true`.
       this feature would permit the user to stack up multiple `onEmit` handlers on a single output resource;
