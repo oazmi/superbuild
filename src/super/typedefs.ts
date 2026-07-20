@@ -4,7 +4,7 @@
 */
 
 import type { AutoSuggestOrString, MaybePromiseOrNull } from "../deps.ts"
-import type { Metafile } from "../esbuild/metafile.ts"
+import type { ReducedMetafile } from "../esbuild/metafile.ts"
 import type { OutputFileEntity } from "../esbuild/outputfile.ts"
 import type {
 	EsbuildLoaderType,
@@ -423,6 +423,14 @@ export interface OnEmitArgs {
 	/** the transformed and/or bundled content that may need to have the linked {@link imports} re-incorporated into it. */
 	contents: Uint8Array<ArrayBuffer>
 
+	/** specifies if this output entity is marked to be written.
+	 * this value is initially `true` by default, but if this entity had been previously re-emitted by an `onEmit` hook,
+	 * then the value here will reflect the `write` state specified in the prior `onEmit` hook's result (i.e. {@link OnEmitResult.write}).
+	 *
+	 * @defaultValue `true`.
+	*/
+	write: boolean
+
 	/** if this resource has been re-emitted by a prior `onEmit` handler,
 	 * then it is possible for that handler to have inserted some kind of additional contextual information into this record field.
 	 *
@@ -507,9 +515,11 @@ export interface OnEmitResult extends EsbuildOnEndResult {
  * then the mutated emitted resource will once again pass through **all** registered `onEmit` handlers.
  *
  * @param args the description of the emitted file that is currently being processed/mutated by your callback function.
- * @param output_file_registry this is a function that returns the underlying {@link OutputFileEntity}
- *   associated with a given resource's initial output path key. the path key can be simply computed as `initialPath ?? outputPath` for a given resource.
- *   the returned {@link OutputFileEntity} instance is strictly for read only purposes. do not even think of modifying it, otherwise bad things will happen.
- *   (i.e. sanata clause will die out of a heart attack, and L will get obliterated by truck-kun on the very first day he meats yagami.)
+ * @param output_file_registry this is a class instance of {@link ReducedMetafile} that lets you search for any output {@link OutputFileEntity | file entity},
+ *   either by their output _path-key_, or by their input sources' _resolved-paths_.
+ *   - the output _path-key_ is the entity's initial output path. it can be simply computed as `initialPath ?? outputPath` for a given resource.
+ *   - as for the sources' _resolved-paths_, they are defined as the `{ namespace: string, path: string }` returned by the source's `onResolve` stage.
+ *   - note that the {@link OutputFileEntity | file entities} are strictly for read only purposes. do not even think of modifying them, otherwise bad things will happen.
+ *     (i.e. sanata clause will die out of a heart attack, and L will get obliterated by truck-kun on the very first day he meats yagami.)
 */
-export type OnEmitCallback = (args: OnEmitArgs, output_file_registry: Metafile["getFile"]) => MaybePromiseOrNull<OnEmitResult>
+export type OnEmitCallback = (args: OnEmitArgs, output_file_registry: ReducedMetafile) => MaybePromiseOrNull<OnEmitResult>
