@@ -5,7 +5,7 @@
 */
 import { type Require } from "../deps.js";
 import type { OnEmitHandler } from "../super/build_context.js";
-import type { BundledInputFile, ImportedEntity, OnEmitOptions, OnEmitResult } from "../super/typedefs.js";
+import type { BundledInputFile, ImportedEntity, OnEmitArgs, OnEmitOptions, OnEmitResult } from "../super/typedefs.js";
 import type { AbsolutePath, Path } from "../typedefs.js";
 import { type Metafile } from "./metafile.js";
 import type { EsbuildOutputFile } from "./typedefs.js";
@@ -26,7 +26,7 @@ export interface ExternalFileEntity {
  * the way to acquire a given {@link OutputFileEntity}'s original output path key is by simply performing:
  * `original_path_key = (file_entity.initialPath ?? file_entity.outputPath).toLowerCase()`.
 */
-export type OutputFileEntityMap = Map<string, OutputFileEntity>;
+export type OutputFileEntityMap = Map<AbsolutePath, OutputFileEntity>;
 export type WriteFileFn = (file_path: string | URL, data: ArrayBufferView) => Promise<void>;
 export declare class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "contents" | "hash">, "contents"> {
     /** the **absolute** output path of this resource entity. */
@@ -77,6 +77,15 @@ export declare class OutputFileEntity implements Require<Pick<EsbuildOutputFile,
     performOnEmit(on_emit_handlers: Array<OnEmitHandler>): Promise<OnEmitResult | undefined>;
     /** performs a single `onEmit` action on _this_ output file entity, without performing any kind of re-emission. */
     private performOnEmitOnce;
+    /** convert this file entity into an {@link OnEmitArgs} to be either passed to
+     * {@link SuperPluginBuild.onEmit}'s callback function, or {@link SuperPluginBuild.rerouteImports}.
+     *
+     * this method is not very efficient, so it is not intended for continuous conversion of the same file entity
+     * (i.e. prefer caching over re-creation for the same file entity).
+     *
+     * if you pass an optional `reEmitData` record, it will get included in the returned object.
+    */
+    toOnEmitArgs(reEmitData?: OnEmitArgs["reEmitData"]): OnEmitArgs;
     /** rename this file. you can either provide an absolute path, or a relative path.
      * relative paths will be resolved with respect to the `cwd` or esbuild's `absWorkingDir`.
     */

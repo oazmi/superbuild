@@ -170,11 +170,7 @@ export class OutputFileEntity {
     }
     /** perform `onEmit` action on _this_ output file entity, based on the provided `onEmit` handlers. */
     async performOnEmit(on_emit_handlers) {
-        const imported_entities = this.imports.map((imported_entity_node) => {
-            const { key, kind, external, entity, with: with_attr } = imported_entity_node, is_external_entity = "externalPath" in entity, outputPath = is_external_entity ? entity.externalPath : entity.outputPath, initialPath = is_external_entity ? undefined : entity.initialPath, write = is_external_entity ? false : entity.write;
-            return { key, outputPath, initialPath, kind, external, with: with_attr, write };
-        });
-        const metafile = this.metafile, importer_paths = [...this.importedBy].map((entity) => { return entity.initialPath ?? entity.outputPath; }), output_file_registry = new ReducedMetafile(metafile);
+        const { importedBy: importer_paths, imports: imported_entities } = this.toOnEmitArgs(), metafile = this.metafile, output_file_registry = new ReducedMetafile(metafile);
         const warnings = [], errors = [];
         let prior_on_emit_result = undefined, prior_re_emit_data = undefined;
         // this loop keeps performing "on-emit" actions, until either the resulting `reEmit` option is not `true`,
@@ -246,6 +242,30 @@ export class OutputFileEntity {
             return on_emit_result;
         }
         return undefined;
+    }
+    /** convert this file entity into an {@link OnEmitArgs} to be either passed to
+     * {@link SuperPluginBuild.onEmit}'s callback function, or {@link SuperPluginBuild.rerouteImports}.
+     *
+     * this method is not very efficient, so it is not intended for continuous conversion of the same file entity
+     * (i.e. prefer caching over re-creation for the same file entity).
+     *
+     * if you pass an optional `reEmitData` record, it will get included in the returned object.
+    */
+    toOnEmitArgs(reEmitData) {
+        const imported_entities = this.imports.map((imported_entity_node) => {
+            const { key, kind, external, entity, with: with_attr } = imported_entity_node, is_external_entity = "externalPath" in entity, outputPath = is_external_entity ? entity.externalPath : entity.outputPath, initialPath = is_external_entity ? undefined : entity.initialPath, write = is_external_entity ? false : entity.write;
+            return { key, outputPath, initialPath, kind, external, with: with_attr, write };
+        });
+        const importer_paths = [...this.importedBy].map((entity) => { return entity.initialPath ?? entity.outputPath; });
+        return {
+            outputPath: this.outputPath,
+            contents: this.contents,
+            write: this.write,
+            inputs: this.inputs,
+            imports: imported_entities,
+            importedBy: importer_paths,
+            reEmitData: reEmitData,
+        };
     }
     /** rename this file. you can either provide an absolute path, or a relative path.
      * relative paths will be resolved with respect to the `cwd` or esbuild's `absWorkingDir`.
