@@ -28,16 +28,24 @@
       I need to investigate them, remove them from the output files,
       and see how the import requester can be given back these bundled css files that have adopted the name of long-build's uuid.
 
-## pre-version `0.2.4` todo list
+## pre-version `0.2.5` todo list
 
 - [ ] in [`/readme.md`](./readme.md) include information on how to initialize a sub-build,
       and on how to access the underlying true `build.esbuild` object (rather than the overloaded version).
 
-## pre-version `0.2.3` todo list
+## pre-version `0.2.4` todo list
 
 - [ ] generalize/weaken the typing so that the library becomes compatible with any version of esbuild.
 - [ ] currently, if a resource does not resolve (i.e. fails to resolve), then the build process halts indefinitely,
       due to the `remainingFilesCounter` of the long-build controller never falling to zero.
+
+## (2026-07-20) pre-version `0.2.3` todo list
+
+- [x] export the [`ReducedMetafile`](./src/esbuild/metafile.ts) and [`OutputFileEntity`](./src/esbuild/outputfile.ts)
+      types in [`./src/mod.ts`](./src/mod.ts).
+- [x] add a [`OutputFileEntity.toOnEmitArgs`](./src/esbuild/outputfile.ts) method for end-user's convenience,
+      when they use the `output_file_registry` in their `OnEmitCallback` functions to acquire _other_ `OutputFileEntity` resources,
+      and pass them on to `SuperPluginBuild.rerouteImports`.
 
 ## (2026-07-20) pre-version `0.2.2` todo list
 

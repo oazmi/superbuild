@@ -7,7 +7,7 @@
 import { array_isEmpty, isNull, isString, relativePath, textEncoder, type Require } from "../deps.ts"
 import type { OnEmitHandler, SuperBuildContext } from "../super/build_context.ts"
 import type { SuperPluginBuild } from "../super/plugin_build.ts"
-import type { BundledInputFile, ImportedEntity, OnEmitOptions, OnEmitResult, OnTransformResult } from "../super/typedefs.ts"
+import type { BundledInputFile, ImportedEntity, OnEmitArgs, OnEmitOptions, OnEmitResult, OnTransformResult } from "../super/typedefs.ts"
 import type { AbsolutePath, NamespacedPath, Path } from "../typedefs.ts"
 import { ReducedMetafile, type Metafile } from "./metafile.ts"
 import type { EsbuildPartialMessage } from "./strongtypes.ts"
@@ -33,7 +33,7 @@ export interface ExternalFileEntity {
  * the way to acquire a given {@link OutputFileEntity}'s original output path key is by simply performing:
  * `original_path_key = (file_entity.initialPath ?? file_entity.outputPath).toLowerCase()`.
 */
-export type OutputFileEntityMap = Map<string, OutputFileEntity>
+export type OutputFileEntityMap = Map<AbsolutePath, OutputFileEntity>
 
 export type WriteFileFn = (file_path: string | URL, data: ArrayBufferView) => Promise<void>
 
@@ -215,18 +215,9 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 
 	/** perform `onEmit` action on _this_ output file entity, based on the provided `onEmit` handlers. */
 	public async performOnEmit(on_emit_handlers: Array<OnEmitHandler>): Promise<OnEmitResult | undefined> {
-		const imported_entities: ImportedEntity[] = this.imports.map((imported_entity_node) => {
-			const
-				{ key, kind, external, entity, with: with_attr } = imported_entity_node,
-				is_external_entity = "externalPath" in entity,
-				outputPath = is_external_entity ? entity.externalPath : entity.outputPath,
-				initialPath = is_external_entity ? undefined : entity.initialPath,
-				write = is_external_entity ? false : entity.write
-			return { key, outputPath, initialPath, kind, external, with: with_attr, write }
-		})
 		const
+			{ importedBy: importer_paths, imports: imported_entities } = this.toOnEmitArgs(),
 			metafile = this.metafile,
-			importer_paths = [...this.importedBy].map((entity) => { return entity.initialPath ?? entity.outputPath }),
 			output_file_registry = new ReducedMetafile(metafile)
 
 		const
@@ -297,6 +288,38 @@ export class OutputFileEntity implements Require<Pick<EsbuildOutputFile, "conten
 			return on_emit_result
 		}
 		return undefined
+	}
+
+	/** convert this file entity into an {@link OnEmitArgs} to be either passed to
+	 * {@link SuperPluginBuild.onEmit}'s callback function, or {@link SuperPluginBuild.rerouteImports}.
+	 *
+	 * this method is not very efficient, so it is not intended for continuous conversion of the same file entity
+	 * (i.e. prefer caching over re-creation for the same file entity).
+	 *
+	 * if you pass an optional `reEmitData` record, it will get included in the returned object.
+	*/
+	public toOnEmitArgs(reEmitData?: OnEmitArgs["reEmitData"]): OnEmitArgs {
+		const imported_entities: ImportedEntity[] = this.imports.map((imported_entity_node) => {
+			const
+				{ key, kind, external, entity, with: with_attr } = imported_entity_node,
+				is_external_entity = "externalPath" in entity,
+				outputPath = is_external_entity ? entity.externalPath : entity.outputPath,
+				initialPath = is_external_entity ? undefined : entity.initialPath,
+				write = is_external_entity ? false : entity.write
+			return { key, outputPath, initialPath, kind, external, with: with_attr, write }
+		})
+
+		const importer_paths = [...this.importedBy].map((entity) => { return entity.initialPath ?? entity.outputPath })
+
+		return {
+			outputPath: this.outputPath,
+			contents: this.contents,
+			write: this.write,
+			inputs: this.inputs,
+			imports: imported_entities,
+			importedBy: importer_paths,
+			reEmitData: reEmitData,
+		}
 	}
 
 	/** rename this file. you can either provide an absolute path, or a relative path.
